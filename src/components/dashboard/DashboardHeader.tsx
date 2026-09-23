@@ -6,12 +6,16 @@ interface DashboardHeaderProps {
   onLogout: () => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
+  activeItem?: string;
+  onSelectItem?: (item: string) => void;
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onLogout,
   onToggleSidebar,
   isSidebarOpen,
+  activeItem,
+  onSelectItem,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -58,6 +62,48 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
         <BrandLogo size="sm" subtitle="PLATEFORME ANALYTICS" />
       </div>
+
+      {/* Center Navigation Bar (Desktop) */}
+      {onSelectItem && (
+        <nav className="hidden md:flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800/80">
+          <button
+            type="button"
+            onClick={() => onSelectItem('Dashboard')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeItem === 'Dashboard'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            Tableau de bord
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectItem('Analyse de Marché')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeItem === 'Analyse de Marché'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <span>Analyse de Marché</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-mono font-bold">
+              IA
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectItem('Fichiers importés')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeItem === 'Fichiers importés' || activeItem === 'Importer un fichier'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            Données & Imports
+          </button>
+        </nav>
+      )}
 
       {/* Right Controls: Notifications & User Profile */}
       <div className="flex items-center gap-2 sm:gap-4">

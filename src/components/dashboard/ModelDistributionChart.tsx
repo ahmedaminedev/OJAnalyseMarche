@@ -1,12 +1,29 @@
 import React, { useState } from 'react';
 import { PieChart as PieIcon } from 'lucide-react';
-import { MODEL_SALES_DISTRIBUTION } from '../../data/mockData';
 
-export const ModelDistributionChart: React.FC = () => {
+interface ModelSlice {
+  name: string;
+  percentage: number;
+  count: number;
+  color: string;
+}
+
+interface ModelDistributionChartProps {
+  data?: ModelSlice[];
+}
+
+const DEFAULT_SLICES: ModelSlice[] = [
+  { name: 'Omoda C5 1.5T', percentage: 55, count: 280, color: '#ff284d' },
+  { name: 'Jaecoo 7 PHEV AWD', percentage: 29, count: 145, color: '#f59e0b' },
+  { name: 'Omoda E5 EV 100%', percentage: 16, count: 81, color: '#06b6d4' },
+];
+
+export const ModelDistributionChart: React.FC<ModelDistributionChartProps> = ({
+  data = DEFAULT_SLICES,
+}) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const data = MODEL_SALES_DISTRIBUTION;
-  const totalCount = 12458;
+  const totalCount = data.reduce((acc, curr) => acc + curr.count, 0) || 506;
 
   // SVG Donut dimensions
   const size = 200;
@@ -32,11 +49,14 @@ export const ModelDistributionChart: React.FC = () => {
   return (
     <div className="bg-[#0b1220] border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between shadow-lg">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <PieIcon className="w-5 h-5 text-[#ff284d]" />
-        <h3 className="text-base font-bold text-white tracking-wide">
-          Répartition des ventes par modèle
-        </h3>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <PieIcon className="w-5 h-5 text-[#ff284d]" />
+          <h3 className="text-base font-bold text-white tracking-wide">
+            Mix Gamme OMODA & JAECOO
+          </h3>
+        </div>
+        <span className="text-[11px] font-mono text-slate-400">Données réelles</span>
       </div>
 
       {/* Chart & Legend Grid */}
@@ -60,7 +80,7 @@ export const ModelDistributionChart: React.FC = () => {
                   strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth}
                   strokeDasharray={arc.strokeDasharray}
                   strokeDashoffset={arc.strokeDashoffset}
-                  className="transition-all duration-200 cursor-pointer"
+                  className="transition-all duration-300 ease-out cursor-pointer hover:opacity-90"
                   onMouseEnter={() => setHoveredIndex(index)}
                   onMouseLeave={() => setHoveredIndex(null)}
                 />
@@ -68,50 +88,41 @@ export const ModelDistributionChart: React.FC = () => {
             })}
           </svg>
 
-          {/* Center Content */}
+          {/* Center Text inside Donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-            <span className="text-xl font-black text-white tracking-tight">
-              {hoveredIndex !== null
-                ? `${data[hoveredIndex].percentage}%`
-                : totalCount.toLocaleString('fr-FR')}
+            <span className="text-[11px] text-slate-400 font-medium">Total Gamme</span>
+            <span className="text-xl font-bold font-mono text-white tracking-tight">
+              {totalCount.toLocaleString('fr-FR')}
             </span>
-            <span className="text-[10px] uppercase font-semibold text-slate-400 mt-0.5 tracking-wider">
-              {hoveredIndex !== null ? data[hoveredIndex].name : 'Ventes totales'}
-            </span>
+            <span className="text-[10px] text-slate-400">unités</span>
           </div>
         </div>
 
         {/* Legend List */}
-        <div className="w-full space-y-2.5">
+        <div className="flex-1 space-y-3 w-full">
           {data.map((item, index) => {
             const isHovered = hoveredIndex === index;
             return (
               <div
                 key={item.name}
+                className={`p-2 rounded-xl transition-all cursor-pointer ${
+                  isHovered ? 'bg-slate-800/80 shadow-md' : 'hover:bg-slate-900/60'
+                }`}
                 onMouseEnter={() => setHoveredIndex(index)}
                 onMouseLeave={() => setHoveredIndex(null)}
-                className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-all duration-150 ${
-                  isHovered ? 'bg-slate-800/60 scale-[1.02]' : 'hover:bg-slate-800/30'
-                }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span
-                    className={`text-xs font-semibold ${
-                      isHovered ? 'text-white' : 'text-slate-300'
-                    }`}
-                  >
-                    {item.name}
-                  </span>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="font-semibold text-slate-200">{item.name}</span>
+                  </div>
+                  <span className="font-mono font-bold text-white">{item.percentage}%</span>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-white">
-                    {item.percentage.toString().replace('.', ',')}%
-                  </span>
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pl-4.5 font-mono">
+                  <span>{item.count.toLocaleString('fr-FR')} unités</span>
                 </div>
               </div>
             );

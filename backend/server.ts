@@ -4,6 +4,8 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { connectDB, isMongoConnected, getDatabaseInfo, DEFAULT_DB_NAME } from './config/db';
 import importRoutes from './routes/importRoutes';
+import marketRoutes from './routes/marketRoutes';
+import { seedInitialDataIfNeeded } from './data/seedMarketData';
 
 dotenv.config();
 
@@ -36,9 +38,13 @@ export async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // Safe MongoDB connection in background
-  connectDB().catch((err) => {
-    console.warn('MongoDB connection warning:', err);
-  });
+  connectDB()
+    .then(() => {
+      seedInitialDataIfNeeded();
+    })
+    .catch((err) => {
+      console.warn('MongoDB connection warning:', err);
+    });
 
   // Health route
   app.get('/api/health', (_req, res) => {
@@ -60,6 +66,7 @@ export async function startServer() {
 
   // Import API Routes
   app.use('/api/imports', importRoutes);
+  app.use('/api/market-stats', marketRoutes);
 
   // Vite middleware in development vs Static files in production
   if (process.env.NODE_ENV !== 'production') {
