@@ -1,0 +1,6 @@
+{
+  "name": "OMODA | JAECOO - Plateforme d'Analyse Automobile",
+  "description": "Plateforme d'analyse et de suivi du marché automobile tunisien pour les marques OMODA et JAECOO.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
