@@ -1,27 +1,44 @@
 import React, { useState } from 'react';
-import { TrendingUp, ChevronDown } from 'lucide-react';
-import { SALES_EVOLUTION_6M } from '../../data/mockData';
+import { TrendingUp } from 'lucide-react';
+import { TimeEvolutionPoint } from '../../services/marketService';
 
-export const SalesEvolutionChart: React.FC = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState<'3 mois' | '6 mois' | '12 mois'>('6 mois');
+interface SalesEvolutionChartProps {
+  data?: TimeEvolutionPoint[];
+  datasetName?: string;
+}
+
+export const SalesEvolutionChart: React.FC<SalesEvolutionChartProps> = ({
+  data = [],
+  datasetName,
+}) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const data = SALES_EVOLUTION_6M;
-  const maxY = 2500;
-  const yTicks = [2500, 2000, 1500, 1000, 500, 0];
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-[#0b1220] border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-center items-center h-64 text-center">
+        <TrendingUp className="w-8 h-8 text-slate-600 mb-2" />
+        <p className="text-xs text-slate-400">Aucune série temporelle disponible</p>
+        <span className="text-[11px] text-slate-500 mt-1">Importez un fichier Excel pour générer la courbe</span>
+      </div>
+    );
+  }
 
-  // SVG Chart dimensions
+  const values = data.map((d) => d.value1);
+  const maxVal = Math.max(...values, 10);
+  const maxY = Math.ceil(maxVal * 1.15);
+
   const svgWidth = 580;
   const svgHeight = 220;
-  const paddingLeft = 50;
-  const paddingRight = 20;
-  const paddingTop = 20;
+  const paddingLeft = 55;
+  const paddingRight = 25;
+  const paddingTop = 25;
   const paddingBottom = 40;
 
   const chartWidth = svgWidth - paddingLeft - paddingRight;
   const chartHeight = svgHeight - paddingTop - paddingBottom;
 
   const getX = (index: number) => {
+    if (data.length <= 1) return paddingLeft + chartWidth / 2;
     return paddingLeft + (index / (data.length - 1)) * chartWidth;
   };
 
@@ -29,24 +46,30 @@ export const SalesEvolutionChart: React.FC = () => {
     return paddingTop + (1 - val / maxY) * chartHeight;
   };
 
-  // Generate paths
-  const omodaPoints = data.map((d, i) => ({ x: getX(i), y: getY(d.omoda) }));
-  const jaecooPoints = data.map((d, i) => ({ x: getX(i), y: getY(d.jaecoo) }));
+  const points = data.map((d, i) => ({ x: getX(i), y: getY(d.value1) }));
 
-  const generatePathD = (points: { x: number; y: number }[]) => {
-    return points.reduce((acc, curr, idx, arr) => {
-      if (idx === 0) return `M ${curr.x} ${curr.y}`;
-      const prev = arr[idx - 1];
-      const cx1 = prev.x + (curr.x - prev.x) / 2;
-      const cy1 = prev.y;
-      const cx2 = prev.x + (curr.x - prev.x) / 2;
-      const cy2 = curr.y;
-      return `${acc} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y}`;
-    }, '');
-  };
+  const pathD = points.reduce((acc, curr, idx, arr) => {
+    if (idx === 0) return `M ${curr.x} ${curr.y}`;
+    const prev = arr[idx - 1];
+    const cx1 = prev.x + (curr.x - prev.x) / 2;
+    const cy1 = prev.y;
+    const cx2 = prev.x + (curr.x - prev.x) / 2;
+    const cy2 = curr.y;
+    return `${acc} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${curr.x} ${curr.y}`;
+  }, '');
 
-  const omodaPath = generatePathD(omodaPoints);
-  const jaecooPath = generatePathD(jaecooPoints);
+  const areaD =
+    points.length > 0
+      ? `${pathD} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`
+      : '';
+
+  const yTicks = [
+    maxY,
+    Math.round(maxY * 0.75),
+    Math.round(maxY * 0.5),
+    Math.round(maxY * 0.25),
+    0,
+  ];
 
   return (
     <div className="bg-[#0b1220] border border-slate-800/90 rounded-2xl p-5 flex flex-col justify-between shadow-lg">
@@ -55,204 +78,138 @@ export const SalesEvolutionChart: React.FC = () => {
         <div className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-[#ff284d]" />
           <h3 className="text-base font-bold text-white tracking-wide">
-            Évolution des ventes
+            Évolution des volumes
           </h3>
         </div>
-
-        {/* Period Selector Dropdown */}
-        <div className="relative">
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value as any)}
-            className="appearance-none bg-[#070b14] border border-slate-700/80 rounded-xl px-3 py-1.5 pr-8 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 focus:outline-none focus:border-[#ff284d] cursor-pointer"
-          >
-            <option value="3 mois">3 mois</option>
-            <option value="6 mois">6 mois</option>
-            <option value="12 mois">12 mois</option>
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="flex items-center gap-2">
+          {datasetName && (
+            <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 truncate max-w-[180px]">
+              {datasetName}
+            </span>
+          )}
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-800/60 uppercase">
+            Données du fichier
+          </span>
         </div>
       </div>
 
-      {/* SVG Chart */}
-      <div className="relative w-full overflow-hidden">
+      {/* Main SVG Area */}
+      <div className="relative w-full overflow-hidden flex-1 flex items-center">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-auto overflow-visible select-none"
         >
           <defs>
-            {/* OMODA Gradient Area */}
-            <linearGradient id="omodaGlow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ff284d" stopOpacity="0.25" />
+            <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ff284d" stopOpacity="0.35" />
               <stop offset="100%" stopColor="#ff284d" stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
-          {/* Grid lines & Y-axis labels */}
-          {yTicks.map((tick) => {
-            const y = getY(tick);
+          {/* Horizontal Grid Lines & Y Axis Labels */}
+          {yTicks.map((val) => {
+            const y = getY(val);
             return (
-              <g key={tick}>
+              <g key={val}>
                 <line
                   x1={paddingLeft}
                   y1={y}
                   x2={svgWidth - paddingRight}
                   y2={y}
-                  stroke="#1e293b"
+                  stroke="#1c2538"
+                  strokeDasharray="4 4"
                   strokeWidth="1"
-                  strokeDasharray={tick === 0 ? 'none' : '3 3'}
                 />
                 <text
-                  x={paddingLeft - 8}
+                  x={paddingLeft - 10}
                   y={y + 4}
                   textAnchor="end"
                   fill="#64748b"
                   fontSize="10"
-                  fontFamily="inherit"
+                  fontFamily="monospace"
                 >
-                  {tick.toLocaleString('fr-FR')}
+                  {val.toLocaleString('fr-FR')}
                 </text>
               </g>
             );
           })}
 
-          {/* OMODA Gradient Fill Under Curve */}
-          <path
-            d={`${omodaPath} L ${omodaPoints[omodaPoints.length - 1].x} ${getY(0)} L ${omodaPoints[0].x} ${getY(0)} Z`}
-            fill="url(#omodaGlow)"
-          />
+          {/* Area Fill */}
+          {areaD && <path d={areaD} fill="url(#curveGradient)" />}
 
-          {/* JAECOO Line (Silver/Gray) */}
-          <path
-            d={jaecooPath}
-            fill="none"
-            stroke="#94a3b8"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-
-          {/* OMODA Line (Red) */}
-          <path
-            d={omodaPath}
-            fill="none"
-            stroke="#ff284d"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-
-          {/* Data Points */}
-          {omodaPoints.map((pt, i) => (
-            <circle
-              key={`omoda-dot-${i}`}
-              cx={pt.x}
-              cy={pt.y}
-              r={hoveredIndex === i ? 5.5 : 4}
-              fill="#ff284d"
-              stroke="#0b1220"
-              strokeWidth="2"
-              className="transition-all duration-150"
+          {/* Primary Curve */}
+          {pathD && (
+            <path
+              d={pathD}
+              fill="none"
+              stroke="#ff284d"
+              strokeWidth="3"
+              strokeLinecap="round"
             />
-          ))}
+          )}
 
-          {jaecooPoints.map((pt, i) => (
-            <circle
-              key={`jaecoo-dot-${i}`}
-              cx={pt.x}
-              cy={pt.y}
-              r={hoveredIndex === i ? 5.5 : 4}
-              fill="#94a3b8"
-              stroke="#0b1220"
-              strokeWidth="2"
-              className="transition-all duration-150"
-            />
-          ))}
-
-          {/* X-axis Labels & Hover targets */}
-          {data.map((d, i) => {
-            const x = getX(i);
-            const isHovered = hoveredIndex === i;
+          {/* Interactive Data Points & X Axis Labels */}
+          {points.map((p, idx) => {
+            const d = data[idx];
+            const isHovered = hoveredIndex === idx;
 
             return (
-              <g
-                key={d.month}
-                onMouseEnter={() => setHoveredIndex(i)}
-                onMouseLeave={() => setHoveredIndex(null)}
-                className="cursor-pointer"
-              >
-                {/* Invisible hover bar */}
-                <rect
-                  x={x - 25}
-                  y={paddingTop}
-                  width="50"
-                  height={chartHeight + 20}
-                  fill="transparent"
-                />
-
-                {/* Vertical hover indicator line */}
-                {isHovered && (
-                  <line
-                    x1={x}
-                    y1={paddingTop}
-                    x2={x}
-                    y2={getY(0)}
-                    stroke="#ff284d"
-                    strokeWidth="1"
-                    strokeDasharray="2 2"
-                  />
-                )}
-
+              <g key={idx}>
+                {/* X Axis Label */}
                 <text
-                  x={x}
+                  x={p.x}
                   y={svgHeight - 12}
                   textAnchor="middle"
-                  fill={isHovered ? '#ffffff' : '#64748b'}
-                  fontSize="11"
-                  fontWeight={isHovered ? '600' : '400'}
-                  fontFamily="inherit"
+                  fill={isHovered ? '#fff' : '#94a3b8'}
+                  fontSize="10"
+                  fontWeight={isHovered ? 'bold' : 'normal'}
                 >
-                  {d.month}
+                  {d.month.length > 10 ? `${d.month.substring(0, 9)}...` : d.month}
                 </text>
+
+                {/* Point Node */}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={isHovered ? 6 : 4}
+                  fill={isHovered ? '#fff' : '#ff284d'}
+                  stroke="#ff284d"
+                  strokeWidth="2"
+                  className="transition-all duration-150 cursor-pointer"
+                  onMouseEnter={() => setHoveredIndex(idx)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                {/* Floating Value Tooltip on Hover */}
+                {isHovered && (
+                  <g pointerEvents="none">
+                    <rect
+                      x={p.x - 45}
+                      y={p.y - 32}
+                      width="90"
+                      height="24"
+                      rx="6"
+                      fill="#0d1526"
+                      stroke="#ff284d"
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={p.x}
+                      y={p.y - 16}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="10"
+                      fontFamily="monospace"
+                      fontWeight="bold"
+                    >
+                      {d.value1.toLocaleString('fr-FR')}
+                    </text>
+                  </g>
+                )}
               </g>
             );
           })}
         </svg>
-
-        {/* Hover Tooltip */}
-        {hoveredIndex !== null && (
-          <div
-            className="absolute top-2 left-1/2 -translate-x-1/2 bg-[#0c1424] border border-slate-700 rounded-xl px-3.5 py-2 shadow-2xl pointer-events-none flex items-center gap-4 text-xs animate-in fade-in zoom-in-95 duration-100"
-          >
-            <span className="font-bold text-white">
-              {data[hoveredIndex].month}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#ff284d]" />
-              <span className="text-slate-300">OMODA:</span>
-              <span className="font-semibold text-white">
-                {data[hoveredIndex].omoda.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#94a3b8]" />
-              <span className="text-slate-300">JAECOO:</span>
-              <span className="font-semibold text-white">
-                {data[hoveredIndex].jaecoo.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Legend Footer */}
-      <div className="flex items-center justify-center gap-6 pt-3 mt-2 border-t border-slate-800/60">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#ff284d]" />
-          <span className="text-xs font-semibold text-slate-300">OMODA</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#94a3b8]" />
-          <span className="text-xs font-semibold text-slate-300">JAECOO</span>
-        </div>
       </div>
     </div>
   );

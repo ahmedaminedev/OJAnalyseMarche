@@ -32,6 +32,11 @@ export interface MarketKPIs {
     sales: number;
     marketShare: number;
   };
+  lowest?: {
+    brand: string;
+    sales: number;
+    marketShare: number;
+  };
   omodaJaecoo: {
     brand: string;
     sales: number;
@@ -44,16 +49,52 @@ export interface MarketKPIs {
   chineseMarketShare: number;
 }
 
+export interface TimeEvolutionPoint {
+  month: string;
+  value1: number;
+  value2?: number;
+}
+
+export interface ModelDistributionSlice {
+  name: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface TopModelItem {
+  rank: number;
+  name: string;
+  salesCount: number;
+  share: string;
+}
+
+export interface RegionalDataItem {
+  region: string;
+  sales: number;
+  percentage: number;
+}
+
 export interface MarketStatsResponse {
-  datasetId: string;
-  datasetName: string;
-  updatedAt: string;
+  hasData: boolean;
+  message?: string;
+  datasetId: string | null;
+  datasetName: string | null;
+  updatedAt?: string;
+  totalRows?: number;
+  totalColumns?: number;
+  activeSheetName?: string;
+  availableSheets?: string[];
   kpis: MarketKPIs;
   brandsRanking: BrandStat[];
   phevRanking: PhevStat[];
   selectedBrand: string;
   modelsBreakdown: ModelStat[];
   availableBrands: string[];
+  timeEvolution?: TimeEvolutionPoint[];
+  modelDistribution?: ModelDistributionSlice[];
+  topModels?: TopModelItem[];
+  regionalData?: RegionalDataItem[];
 }
 
 export interface SmartFilterSuggestion {
@@ -73,10 +114,11 @@ export interface AiMarketInsightsResponse {
   smartFilterSuggestions: SmartFilterSuggestion[];
 }
 
-class MarketService {
+export const marketService = {
   async getMarketStats(params?: {
     importId?: string;
     brand?: string;
+    energyFilter?: string;
     originFilter?: string;
     minSales?: number;
   }): Promise<MarketStatsResponse | null> {
@@ -84,41 +126,23 @@ class MarketService {
       const searchParams = new URLSearchParams();
       if (params?.importId) searchParams.append('importId', params.importId);
       if (params?.brand) searchParams.append('brand', params.brand);
-      if (params?.originFilter) searchParams.append('originFilter', params.originFilter);
+      if (params?.energyFilter && params.energyFilter !== 'all') {
+        searchParams.append('energyFilter', params.energyFilter);
+      }
+      if (params?.originFilter && params.originFilter !== 'all') {
+        searchParams.append('originFilter', params.originFilter);
+      }
       if (params?.minSales) searchParams.append('minSales', String(params.minSales));
 
-      const url = `/api/market-stats?${searchParams.toString()}`;
-      const res = await fetch(url);
+      const queryStr = searchParams.toString();
+      const res = await fetch(`/api/market-stats${queryStr ? `?${queryStr}` : ''}`);
       if (!res.ok) {
-        throw new Error(`Erreur HTTP: ${res.status}`);
+        throw new Error(`Failed to fetch market stats: ${res.statusText}`);
       }
       return await res.json();
     } catch (err) {
-      console.warn('Erreur chargement market stats:', err);
+      console.error('Erreur getMarketStats:', err);
       return null;
     }
-  }
-
-  async getAiInsights(payload: {
-    datasetId?: string;
-    activeFilters?: any;
-    userQuery?: string;
-  }): Promise<AiMarketInsightsResponse | null> {
-    try {
-      const res = await fetch('/api/market-stats/insights', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        throw new Error(`Erreur HTTP: ${res.status}`);
-      }
-      return await res.json();
-    } catch (err) {
-      console.warn('Erreur génération insights IA:', err);
-      return null;
-    }
-  }
-}
-
-export const marketService = new MarketService();
+  },
+};

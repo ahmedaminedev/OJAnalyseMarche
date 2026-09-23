@@ -34,7 +34,7 @@ export const BrandModelsBarChart: React.FC<BrandModelsBarChartProps> = ({
               Répartition des ventes {brandName}
             </h3>
             <p className="text-[11px] text-slate-400">
-              Volumes d'immatriculation par modèle (Source ATTT)
+              Volumes détaillés par modèle (Données du fichier)
             </p>
           </div>
         </div>

@@ -6,12 +6,14 @@ interface AtttSalesRankingChartProps {
   data: BrandStat[];
   onSelectBrand?: (brand: string) => void;
   selectedBrand?: string;
+  datasetName?: string;
 }
 
 export const AtttSalesRankingChart: React.FC<AtttSalesRankingChartProps> = ({
   data,
   onSelectBrand,
   selectedBrand,
+  datasetName,
 }) => {
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'top10' | 'chinese' | 'phev'>('all');
@@ -50,11 +52,11 @@ export const AtttSalesRankingChart: React.FC<AtttSalesRankingChartProps> = ({
                 VENTES
               </h3>
               <span className="text-[11px] font-mono text-slate-400 tracking-wider">
-                (SOURCE: ATTT)
+                {datasetName ? `(${datasetName})` : '(FICHIER EXCEL)'}
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Volumes d'immatriculations réels par marque
+              Volumes calculés directement à partir du fichier importé
             </p>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, ChevronDown, User, LogOut, Settings, ShieldCheck, Menu, X, Check } from 'lucide-react';
+import { Bell, ChevronDown, User, LogOut, Settings, ShieldCheck, Menu, X, Check, Sparkles, Bot } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
 interface DashboardHeaderProps {
@@ -80,15 +80,27 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <button
             type="button"
             onClick={() => onSelectItem('Analyse de Marché')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               activeItem === 'Analyse de Marché'
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            <span>Analyse de Marché</span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-mono font-bold">
-              IA
+            Analyse de Marché
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectItem('Assistant IA')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeItem === 'Assistant IA'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+            <span>Assistant IA</span>
+            <span className="text-[9px] px-1 py-0.2 rounded bg-red-950 text-red-300 border border-red-800 font-mono font-bold">
+              Chatbot
             </span>
           </button>
           <button

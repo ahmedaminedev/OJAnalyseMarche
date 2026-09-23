@@ -6,6 +6,7 @@ import {
   ChevronRight,
   TrendingUp,
   Sparkles,
+  Bot,
 } from 'lucide-react';
 import { ASSETS } from '../../data/mockData';
 
@@ -103,7 +104,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             <span className="font-semibold tracking-wide">Tableau de bord</span>
           </button>
 
-          {/* New Market Analytics section requested by user */}
+          {/* Market Analytics section */}
           <button
             id="sidebar-analytics-btn"
             type="button"
@@ -126,9 +127,34 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
               </div>
               <span className="font-semibold tracking-wide">Analyse de Marché</span>
             </div>
+          </button>
+
+          {/* Assistant IA Chatbot section */}
+          <button
+            id="sidebar-assistant-btn"
+            type="button"
+            onClick={() => handleItemClick('Assistant IA')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
+              activeItem === 'Assistant IA'
+                ? 'bg-[#1b1522] text-white border-l-4 border-[#ff284d] shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-1.5 rounded-lg ${
+                  activeItem === 'Assistant IA'
+                    ? 'bg-gradient-to-tr from-red-600 to-rose-500 text-white shadow-md shadow-red-600/30'
+                    : 'text-slate-400'
+                }`}
+              >
+                <Bot className="w-4 h-4 text-amber-300" />
+              </div>
+              <span className="font-semibold tracking-wide">Assistant IA</span>
+            </div>
             <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-800/60 font-mono">
-              <Sparkles className="w-2.5 h-2.5 text-amber-300" />
-              IA
+              <Sparkles className="w-2.5 h-2.5 text-amber-300 animate-pulse" />
+              Chatbot
             </span>
           </button>
 

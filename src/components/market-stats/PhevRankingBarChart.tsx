@@ -147,15 +147,15 @@ export const PhevRankingBarChart: React.FC<PhevRankingBarChartProps> = ({ data }
         </div>
       </div>
 
-      {/* Footer info (automobile.tn / Source ATTT) */}
+      {/* Footer info */}
       <div className="mt-8 flex items-center justify-between text-[11px] text-slate-400">
         <div className="flex items-center gap-1.5">
           <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
           <span>
-            OMODA & JAECOO (405) en 3e position nationale, à seulement 4 unités de Lynk & Co (409) !
+            Volumes hybrides rechargeables (PHEV) calculés directement depuis le fichier.
           </span>
         </div>
-        <span className="font-mono text-slate-400">Source : automobile.tn / ATTT</span>
+        <span className="font-mono text-slate-400">Données réelles du fichier</span>
       </div>
     </div>
   );

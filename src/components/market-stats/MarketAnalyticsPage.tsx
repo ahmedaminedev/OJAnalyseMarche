@@ -5,14 +5,13 @@ import {
   Award,
   BarChart3,
   RefreshCw,
-  FolderOpen,
-  AlertCircle,
   FileSpreadsheet,
+  Upload,
+  ArrowRight,
 } from 'lucide-react';
 import {
   marketService,
   MarketStatsResponse,
-  SmartFilterSuggestion,
   BrandStat,
 } from '../../services/marketService';
 import { importService } from '../../services/importService';
@@ -21,36 +20,38 @@ import { MarketSharePieChart } from './MarketSharePieChart';
 import { BrandModelsBarChart } from './BrandModelsBarChart';
 import { PhevRankingBarChart } from './PhevRankingBarChart';
 import { AtttSalesRankingChart } from './AtttSalesRankingChart';
-import { AiSmartFiltersBar, ActiveFiltersState } from './AiSmartFiltersBar';
+import {
+  AdvancedMarketFiltersBar,
+  AdvancedFiltersState,
+} from './AdvancedMarketFiltersBar';
 
 interface MarketAnalyticsPageProps {
   onNavigateToImport?: () => void;
+  onNavigateToAssistant?: () => void;
 }
 
 export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
   onNavigateToImport,
+  onNavigateToAssistant,
 }) => {
   const [statsData, setStatsData] = useState<MarketStatsResponse | null>(null);
   const [availableDatasets, setAvailableDatasets] = useState<ImportedFileRecord[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
-  const [selectedBrand, setSelectedBrand] = useState<string>('Hyundai');
+  const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Filters State
-  const [filters, setFilters] = useState<ActiveFiltersState>({
-    energyFilter: 'all',
-    originFilter: 'all',
-    minSales: 0,
+  // Non-AI Advanced Filters State
+  const [filters, setFilters] = useState<AdvancedFiltersState>({
+    searchQuery: '',
     selectedBrands: [],
+    originFilter: 'all',
+    energyFilter: 'all',
+    minSales: 0,
+    topLimit: 0,
+    sortBy: 'sales_desc',
   });
 
-  // AI Intelligence State
-  const [smartSuggestions, setSmartSuggestions] = useState<SmartFilterSuggestion[]>([]);
-  const [aiSummary, setAiSummary] = useState<string>('');
-  const [aiTakeaways, setAiTakeaways] = useState<string[]>([]);
-  const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
-
-  // Fetch initial market data & datasets list
+  // Fetch market stats & available datasets
   const loadData = async (datasetId?: string, brandName?: string) => {
     setIsLoading(true);
     try {
@@ -65,10 +66,13 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
       if (stats) {
         setStatsData(stats);
         if (!selectedBrand || !stats.availableBrands.includes(selectedBrand)) {
-          setSelectedBrand(stats.selectedBrand || 'Hyundai');
+          setSelectedBrand(stats.selectedBrand || stats.availableBrands[0] || '');
         }
       }
       setAvailableDatasets(datasets);
+      if (!selectedDatasetId && datasets.length > 0) {
+        setSelectedDatasetId(datasets[0].id);
+      }
     } catch (err) {
       console.error('Erreur chargement page stats:', err);
     } finally {
@@ -76,41 +80,17 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
     }
   };
 
-  // Load AI Insights
-  const loadAiInsights = async (userQuery?: string) => {
-    setIsLoadingAi(true);
-    try {
-      const res = await marketService.getAiInsights({
-        datasetId: selectedDatasetId,
-        activeFilters: filters,
-        userQuery,
-      });
-      if (res) {
-        setAiSummary(res.summary);
-        setAiTakeaways(res.keyTakeaways);
-        setSmartSuggestions(res.smartFilterSuggestions);
-      }
-    } catch (err) {
-      console.warn('Erreur AI insights:', err);
-    } finally {
-      setIsLoadingAi(false);
-    }
-  };
-
   useEffect(() => {
     loadData();
-    loadAiInsights();
   }, []);
 
   const handleDatasetChange = async (newId: string) => {
     setSelectedDatasetId(newId);
     await loadData(newId);
-    await loadAiInsights();
   };
 
   const handleSelectBrand = async (brand: string) => {
     setSelectedBrand(brand);
-    // Reload model breakdown dynamically
     const updated = await marketService.getMarketStats({
       importId: selectedDatasetId,
       brand,
@@ -120,49 +100,64 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
     }
   };
 
+  const hasImportedData = Boolean(
+    statsData && statsData.hasData && statsData.totalRows && statsData.totalRows > 0
+  );
+
   // Filter application pipeline
-  const applySmartSuggestion = (suggestion: SmartFilterSuggestion) => {
-    if (suggestion.filterType === 'brandGroup' && suggestion.brands) {
-      setFilters({
-        ...filters,
-        selectedBrands: suggestion.brands,
-      });
-    } else if (suggestion.filterType === 'origin' && suggestion.origin) {
-      setFilters({
-        ...filters,
-        originFilter: suggestion.origin,
-      });
-    } else if (suggestion.filterType === 'phevOnly') {
-      setFilters({
-        ...filters,
-        energyFilter: 'phev',
-      });
-    }
-  };
+  let displayedBrands: BrandStat[] = [...(statsData?.brandsRanking || [])];
 
-  // Calculate filtered brand records
-  let displayedBrands: BrandStat[] = statsData?.brandsRanking || [];
-
-  if (filters.energyFilter === 'phev') {
-    displayedBrands = displayedBrands.filter((b) => b.phevSales > 0);
+  // 1. Text Search Query
+  if (filters.searchQuery.trim()) {
+    const q = filters.searchQuery.toLowerCase().trim();
+    displayedBrands = displayedBrands.filter((b) =>
+      b.brand.toLowerCase().includes(q)
+    );
   }
 
+  // 2. Multi-brand selection
+  if (filters.selectedBrands.length > 0) {
+    const setBrands = new Set(filters.selectedBrands.map((b) => b.toLowerCase()));
+    displayedBrands = displayedBrands.filter((b) =>
+      setBrands.has(b.brand.toLowerCase())
+    );
+  }
+
+  // 3. Geographic Origin
   if (filters.originFilter !== 'all') {
     displayedBrands = displayedBrands.filter((b) =>
       b.origin.toLowerCase().includes(filters.originFilter.toLowerCase())
     );
   }
 
+  // 4. Energy Filter
+  if (filters.energyFilter === 'phev') {
+    displayedBrands = displayedBrands.filter((b) => b.phevSales > 0);
+  } else if (filters.energyFilter === 'ice') {
+    displayedBrands = displayedBrands.filter((b) => b.sales > b.phevSales);
+  }
+
+  // 5. Minimum Sales Threshold
   if (filters.minSales > 0) {
     displayedBrands = displayedBrands.filter((b) => b.sales >= filters.minSales);
   }
 
-  if (filters.selectedBrands.length > 0) {
-    displayedBrands = displayedBrands.filter((b) =>
-      filters.selectedBrands.some(
-        (target) => b.brand.toLowerCase() === target.toLowerCase()
-      )
-    );
+  // 6. Sorting
+  if (filters.sortBy === 'sales_asc') {
+    displayedBrands.sort((a, b) => a.sales - b.sales);
+  } else if (filters.sortBy === 'phev_desc') {
+    displayedBrands.sort((a, b) => b.phevSales - a.phevSales);
+  } else if (filters.sortBy === 'share_desc') {
+    displayedBrands.sort((a, b) => b.marketShare - a.marketShare);
+  } else if (filters.sortBy === 'name_asc') {
+    displayedBrands.sort((a, b) => a.brand.localeCompare(b.brand));
+  } else {
+    displayedBrands.sort((a, b) => b.sales - a.sales);
+  }
+
+  // 7. Top Limit
+  if (filters.topLimit > 0) {
+    displayedBrands = displayedBrands.slice(0, filters.topLimit);
   }
 
   return (
@@ -172,18 +167,20 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-red-950/70 text-red-400 border border-red-800/60">
-              Intelligence Marché & Visualisations
+              Observatoire & Visualisations
             </span>
             <span className="text-slate-400 text-xs">/</span>
             <span className="text-slate-400 text-xs font-mono">
-              Source : ATTT Tunisie 2026
+              {statsData?.datasetName
+                ? `Fichier : ${statsData.datasetName} (${statsData.totalRows} lignes)`
+                : 'Aucun fichier actif'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Analyse Approfondie du Marché Automobile
+            Analyse Complète du Marché Automobile
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Visualisations dynamiques générées à 100% à partir des données réelles de la base MongoDB.
+            Explorez les données de vos fichiers Excel avec des filtres combinés et visualisations dynamiques.
           </p>
         </div>
 
@@ -197,10 +194,9 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
                 onChange={(e) => handleDatasetChange(e.target.value)}
                 className="bg-transparent text-slate-200 text-xs cursor-pointer focus:outline-none"
               >
-                <option value="">Jeu officiel ATTT 2026 (Par défaut)</option>
                 {availableDatasets.map((ds) => (
                   <option key={ds.id} value={ds.id}>
-                    Fichier : {ds.fileName} ({ds.totalRows} lignes)
+                    {ds.fileName} ({ds.totalRows} lignes)
                   </option>
                 ))}
               </select>
@@ -210,7 +206,7 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
           <button
             type="button"
             onClick={() => loadData()}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             title="Rafraîchir les données depuis la base"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -218,141 +214,161 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
         </div>
       </div>
 
-      {/* Row of 4 Core Dynamic Market KPIs */}
-      {statsData && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* KPI 1: Total Market Sales */}
-          <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-semibold uppercase tracking-wider">Volume Total Marché</span>
-              <span className="p-1.5 rounded-lg bg-blue-950/60 text-blue-400 border border-blue-900/50">
-                <BarChart3 className="w-3.5 h-3.5" />
-              </span>
+      {/* Empty State Banner if no imported Excel file exists */}
+      {!hasImportedData ? (
+        <div className="rounded-2xl bg-gradient-to-br from-[#0c1322] via-[#0d1628] to-[#141f36] border-2 border-dashed border-red-500/40 p-8 sm:p-12 text-center shadow-2xl">
+          <div className="max-w-2xl mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 mx-auto flex items-center justify-center text-white shadow-xl shadow-red-600/30">
+              <FileSpreadsheet className="w-8 h-8" />
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-              {statsData.kpis.totalMarketSales.toLocaleString('fr-FR')}
-            </div>
-            <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
-              <span className="text-emerald-400 font-semibold">+4.2%</span>
-              <span>vs période précédente</span>
-            </div>
-          </div>
 
-          {/* KPI 2: OMODA & JAECOO Market Position */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#121c33] to-[#0e1626] border border-red-500/40 shadow-xl shadow-red-950/20 relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-semibold text-red-400 uppercase tracking-wider">
-                OMODA & JAECOO
-              </span>
-              <span className="p-1.5 rounded-lg bg-red-950/80 text-red-400 border border-red-800/60">
-                <Award className="w-3.5 h-3.5" />
-              </span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-              {statsData.kpis.omodaJaecoo.sales}{' '}
-              <span className="text-sm font-normal text-slate-400">unités</span>
-            </div>
-            <div className="mt-2 text-[11px] text-slate-300 flex items-center gap-2">
-              <span className="font-bold text-red-400">
-                {statsData.kpis.omodaJaecoo.marketShare}% PDM
-              </span>
-              <span className="text-slate-400">| Rang #{statsData.kpis.omodaJaecoo.rank}</span>
-            </div>
-          </div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              Aucun fichier de données importé
+            </h2>
 
-          {/* KPI 3: Total PHEV Volume (Capture 2 Context) */}
-          <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-semibold text-emerald-400 uppercase tracking-wider">
-                Immatriculations PHEV
-              </span>
-              <span className="p-1.5 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-900/50">
-                <Zap className="w-3.5 h-3.5" />
-              </span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-              {statsData.kpis.totalPhevSales.toLocaleString('fr-FR')}
-            </div>
-            <div className="mt-2 text-[11px] text-slate-400">
-              Omoda & Jaecoo détient{' '}
-              <strong className="text-emerald-400">
-                {statsData.kpis.omodaJaecoo.phevShare}%
-              </strong>{' '}
-              du segment PHEV
-            </div>
-          </div>
+            <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+              Pour visualiser les classements, parts de marché et graphiques détaillés, vous devez d'abord importer un fichier Excel (.xlsx ou .xls).
+            </p>
 
-          {/* KPI 4: Market Leader */}
-          <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
-            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-              <span className="font-semibold uppercase tracking-wider">Marque Leader</span>
-              <span className="p-1.5 rounded-lg bg-amber-950/60 text-amber-400 border border-amber-900/50">
-                <TrendingUp className="w-3.5 h-3.5" />
-              </span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-white font-mono">
-              {statsData.kpis.leader.brand}
-            </div>
-            <div className="mt-2 text-[11px] text-slate-400">
-              <strong className="text-white">
-                {statsData.kpis.leader.sales.toLocaleString('fr-FR')}
-              </strong>{' '}
-              ventes ({statsData.kpis.leader.marketShare}% PDM)
-            </div>
+            {onNavigateToImport && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={onNavigateToImport}
+                  className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-sm shadow-xl shadow-red-950/50 flex items-center gap-2.5 mx-auto transition-transform active:scale-95 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Importer un fichier Excel maintenant</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Row of 4 Core Dynamic Market KPIs */}
+          {statsData && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* KPI 1: Total Market Sales */}
+              <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                  <span className="font-semibold uppercase tracking-wider">Volume Total Fichier</span>
+                  <span className="p-1.5 rounded-lg bg-blue-950/60 text-blue-400 border border-blue-900/50">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {statsData.kpis.totalMarketSales.toLocaleString('fr-FR')}
+                </div>
+                <div className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
+                  <span className="text-emerald-400 font-semibold">{statsData.totalRows}</span> lignes réelles analysées
+                </div>
+              </div>
 
-      {/* Advanced AI & Contextual Filter Hub */}
-      <AiSmartFiltersBar
-        filters={filters}
-        onFiltersChange={setFilters}
-        availableBrands={statsData?.availableBrands || []}
-        smartSuggestions={smartSuggestions}
-        onApplySmartSuggestion={applySmartSuggestion}
-        onAskAi={loadAiInsights}
-        isLoadingAi={isLoadingAi}
-        aiSummary={aiSummary}
-        aiTakeaways={aiTakeaways}
-      />
+              {/* KPI 2: Leader */}
+              <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                  <span className="font-semibold uppercase tracking-wider">Marque N°1</span>
+                  <span className="p-1.5 rounded-lg bg-amber-950/60 text-amber-400 border border-amber-900/50">
+                    <Award className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono truncate">
+                  {statsData.kpis.leader.brand}
+                </div>
+                <div className="text-xs text-slate-400 mt-2 flex items-center justify-between font-mono">
+                  <span className="text-amber-400 font-bold">
+                    {statsData.kpis.leader.sales.toLocaleString('fr-FR')} unités
+                  </span>
+                  <span>{statsData.kpis.leader.marketShare}% PDM</span>
+                </div>
+              </div>
 
-      {/* Grid Row 1: Capture 1 Pair (Parts de marché Camembert + Répartition Modèles Marque) */}
-      {statsData && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-6">
-            <MarketSharePieChart
-              data={displayedBrands}
-              onSelectBrand={handleSelectBrand}
-              selectedBrand={selectedBrand}
-            />
-          </div>
-          <div className="lg:col-span-6">
-            <BrandModelsBarChart
-              brandName={selectedBrand}
-              models={statsData.modelsBreakdown}
+              {/* KPI 3: Secondary / PHEV Volume */}
+              <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                  <span className="font-semibold uppercase tracking-wider">Segment PHEV</span>
+                  <span className="p-1.5 rounded-lg bg-red-950/60 text-[#ff284d] border border-red-900/50">
+                    <Zap className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-[#ff284d] font-mono">
+                  {statsData.kpis.totalPhevSales.toLocaleString('fr-FR')}
+                </div>
+                <div className="text-xs text-slate-400 mt-2 font-mono">
+                  {statsData.kpis.totalPhevSales > 0 ? 'Immatriculations rechargeables' : 'Non spécifié'}
+                </div>
+              </div>
+
+              {/* KPI 4: Total Brands */}
+              <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
+                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                  <span className="font-semibold uppercase tracking-wider">Entités Détectées</span>
+                  <span className="p-1.5 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-900/50">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {statsData.kpis.totalBrands}
+                </div>
+                <div className="text-xs text-slate-400 mt-2 font-mono">
+                  Catégories ou marques distinctes
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 100% NON-AI ADVANCED FILTERS BAR */}
+          {statsData && (
+            <AdvancedMarketFiltersBar
+              filters={filters}
+              onFiltersChange={setFilters}
               availableBrands={statsData.availableBrands}
-              onSelectBrand={handleSelectBrand}
+              totalRecordsCount={statsData.brandsRanking.length}
+              filteredRecordsCount={displayedBrands.length}
             />
-          </div>
-        </div>
-      )}
+          )}
 
-      {/* Grid Row 2: Capture 2 (Immatriculations PHEV par marque en Tunisie) */}
-      {statsData && (
-        <div>
-          <PhevRankingBarChart data={statsData.phevRanking} />
-        </div>
-      )}
+          {/* 4 Interactive Visualizations */}
+          {statsData && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Chart 1: Donut Part de Marché */}
+              <div className="lg:col-span-6 xl:col-span-5">
+                <MarketSharePieChart
+                  data={displayedBrands}
+                  onSelectBrand={handleSelectBrand}
+                  selectedBrand={selectedBrand}
+                />
+              </div>
 
-      {/* Grid Row 3: Capture 3 (VENTES SOURCE: ATTT - Classement exhaustif en barres) */}
-      {statsData && (
-        <div>
-          <AtttSalesRankingChart
-            data={displayedBrands}
-            onSelectBrand={handleSelectBrand}
-            selectedBrand={selectedBrand}
-          />
-        </div>
+              {/* Chart 2: Modèles de la marque sélectionnée */}
+              <div className="lg:col-span-6 xl:col-span-7">
+                <BrandModelsBarChart
+                  brandName={selectedBrand}
+                  models={statsData.modelsBreakdown}
+                  availableBrands={statsData.availableBrands}
+                  onSelectBrand={handleSelectBrand}
+                />
+              </div>
+
+              {/* Chart 3: Podium PHEV (Hybrides Rechargeables) */}
+              <div className="lg:col-span-12 xl:col-span-5">
+                <PhevRankingBarChart data={statsData.phevRanking} />
+              </div>
+
+              {/* Chart 4: Ventes Complètes par Marque */}
+              <div className="lg:col-span-12 xl:col-span-7">
+                <AtttSalesRankingChart
+                  data={displayedBrands}
+                  onSelectBrand={handleSelectBrand}
+                  selectedBrand={selectedBrand}
+                  datasetName={statsData.datasetName || undefined}
+                />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

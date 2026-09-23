@@ -7,9 +7,13 @@ import {
   getDatabaseInfo,
   DEFAULT_DB_NAME,
 } from '../config/db';
-
-// In-memory store used when MongoDB is not connected
-const fallbackMemoryStore: any[] = [];
+import {
+  getAllImportedFiles,
+  getTargetImportedFile,
+  saveImportedFile,
+  deleteImportedFile,
+  memoryImportsStore,
+} from '../data/importsStore';
 
 /**
  * GET /api/imports
@@ -17,18 +21,8 @@ const fallbackMemoryStore: any[] = [];
  */
 export async function getImports(req: Request, res: Response): Promise<void> {
   try {
-    if (!isMongoConnected()) {
-      await connectDB();
-    }
-
-    if (isMongoConnected()) {
-      const records = await ImportRecordModel.find().sort({ importedAt: -1 }).lean();
-      res.json(records);
-      return;
-    }
-
-    // Fallback in-memory backend store
-    res.json(fallbackMemoryStore);
+    const records = await getAllImportedFiles();
+    res.json(records);
   } catch (error) {
     console.error('Erreur getImports:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des imports.' });
@@ -42,27 +36,12 @@ export async function getImports(req: Request, res: Response): Promise<void> {
 export async function getImportById(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-
-    if (!isMongoConnected()) {
-      await connectDB();
-    }
-
-    if (isMongoConnected()) {
-      const record = await ImportRecordModel.findOne({ id }).lean();
-      if (!record) {
-        res.status(404).json({ error: 'Import non trouvé.' });
-        return;
-      }
-      res.json(record);
-      return;
-    }
-
-    const found = fallbackMemoryStore.find((item) => item.id === id);
-    if (!found) {
+    const record = await getTargetImportedFile(id);
+    if (!record) {
       res.status(404).json({ error: 'Import non trouvé.' });
       return;
     }
-    res.json(found);
+    res.json(record);
   } catch (error) {
     console.error('Erreur getImportById:', error);
     res.status(500).json({ error: "Erreur lors de la recherche de l'import." });
@@ -82,22 +61,8 @@ export async function createImport(req: Request, res: Response): Promise<void> {
       importedAt: payload.importedAt || new Date().toISOString(),
     };
 
-    if (!isMongoConnected()) {
-      await connectDB();
-    }
-
-    if (isMongoConnected()) {
-      const doc = new ImportRecordModel(newRecord);
-      await doc.save();
-      console.log(`✅ [Backend DB] Import "${newRecord.fileName}" sauvegardé dans MongoDB (${DEFAULT_DB_NAME})`);
-      res.status(201).json(doc.toObject());
-      return;
-    }
-
-    // Backend memory store
-    fallbackMemoryStore.unshift(newRecord);
-    console.log(`ℹ️ [Backend DB] Import "${newRecord.fileName}" sauvegardé en mémoire backend (MongoDB déconnecté)`);
-    res.status(201).json(newRecord);
+    const saved = await saveImportedFile(newRecord);
+    res.status(201).json(saved);
   } catch (error) {
     console.error('Erreur createImport:', error);
     res.status(500).json({ error: "Erreur lors de l'enregistrement de l'import dans la base de données." });
@@ -132,7 +97,7 @@ export async function updateImportStatus(req: Request, res: Response): Promise<v
       return;
     }
 
-    const item = fallbackMemoryStore.find((i) => i.id === id);
+    const item = memoryImportsStore.find((i) => i.id === id);
     if (!item) {
       res.status(404).json({ error: 'Import non trouvé.' });
       return;
@@ -152,24 +117,10 @@ export async function updateImportStatus(req: Request, res: Response): Promise<v
 export async function deleteImport(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-
-    if (!isMongoConnected()) {
-      await connectDB();
-    }
-
-    if (isMongoConnected()) {
-      const result = await ImportRecordModel.deleteOne({ id });
-      if (result.deletedCount === 0) {
-        const idx = fallbackMemoryStore.findIndex((i) => i.id === id);
-        if (idx >= 0) fallbackMemoryStore.splice(idx, 1);
-      }
-      res.json({ success: true, id });
+    const deleted = await deleteImportedFile(id);
+    if (!deleted) {
+      res.status(404).json({ error: 'Import non trouvé.' });
       return;
-    }
-
-    const idx = fallbackMemoryStore.findIndex((i) => i.id === id);
-    if (idx >= 0) {
-      fallbackMemoryStore.splice(idx, 1);
     }
     res.json({ success: true, id });
   } catch (error) {

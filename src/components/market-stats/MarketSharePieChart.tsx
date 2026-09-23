@@ -119,7 +119,7 @@ export const MarketSharePieChart: React.FC<MarketSharePieChartProps> = ({
               Parts de marché
             </h3>
             <p className="text-[11px] text-slate-400">
-              Répartition globale des ventes (Données dynamiques ATTT)
+              Répartition globale des volumes (Données calculées du fichier)
             </p>
           </div>
         </div>

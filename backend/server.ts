@@ -5,7 +5,8 @@ import dotenv from 'dotenv';
 import { connectDB, isMongoConnected, getDatabaseInfo, DEFAULT_DB_NAME } from './config/db';
 import importRoutes from './routes/importRoutes';
 import marketRoutes from './routes/marketRoutes';
-import { seedInitialDataIfNeeded } from './data/seedMarketData';
+import assistantRoutes from './routes/assistantRoutes';
+import { cleanupLegacyDefaultData } from './data/seedMarketData';
 
 dotenv.config();
 
@@ -25,8 +26,8 @@ function getPort(): number {
     }
   }
 
-  // 3. Default port: 3001 (freeing 3000 for user's other apps)
-  return 3001;
+  // 3. Default port: 3000 (standard port for AI Studio preview)
+  return 3000;
 }
 
 export async function startServer() {
@@ -40,7 +41,7 @@ export async function startServer() {
   // Safe MongoDB connection in background
   connectDB()
     .then(() => {
-      seedInitialDataIfNeeded();
+      cleanupLegacyDefaultData();
     })
     .catch((err) => {
       console.warn('MongoDB connection warning:', err);
@@ -67,11 +68,15 @@ export async function startServer() {
   // Import API Routes
   app.use('/api/imports', importRoutes);
   app.use('/api/market-stats', marketRoutes);
+  app.use('/api/assistant', assistantRoutes);
 
   // Vite middleware in development vs Static files in production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
