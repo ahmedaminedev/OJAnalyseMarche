@@ -11,16 +11,11 @@ export const DEFAULT_DB_NAME = process.env.MONGODB_DB_NAME?.trim() || 'omoda_jae
  * until a remote MongoDB URI (like MongoDB Atlas) or tunnel is configured.
  */
 export async function connectDB(): Promise<boolean> {
-  const mongoUri = process.env.MONGODB_URI?.trim();
+  const defaultLocalUri = `mongodb://127.0.0.1:27017/${DEFAULT_DB_NAME}`;
+  const mongoUri = process.env.MONGODB_URI?.trim() || defaultLocalUri;
 
   if (isConnected && mongoose.connection.readyState === 1) {
     return true;
-  }
-
-  if (!mongoUri) {
-    console.info(`ℹ️ [Backend DB] Aucune variable MONGODB_URI configurée. Le serveur utilise le stockage résilient en mémoire. Pour connecter votre base MongoDB distante ou Atlas, définissez MONGODB_URI.`);
-    isConnected = false;
-    return false;
   }
 
   try {
@@ -28,14 +23,14 @@ export async function connectDB(): Promise<boolean> {
     console.log(`🔄 [Backend DB] Tentative de connexion à MongoDB (${maskedUri}) - Base: ${DEFAULT_DB_NAME}...`);
     await mongoose.connect(mongoUri, {
       dbName: DEFAULT_DB_NAME,
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 3000,
+      connectTimeoutMS: 3000,
     });
     isConnected = true;
     console.log(`✅ [Backend DB] Connecté avec succès à MongoDB sur la base "${DEFAULT_DB_NAME}"`);
     return true;
   } catch (error: any) {
-    console.warn(`⚠️ [Backend DB] Impossible de joindre MongoDB (${error.message || error}). Basculement sur le cache résilient/mémoire.`);
+    console.log(`ℹ️ [Backend DB] MongoDB Compass local non joignable immédiatement sur 127.0.0.1:27017 (Mode cloud ou service non démarré). Basculement sur le cache résilient backend.`);
     isConnected = false;
     return false;
   }

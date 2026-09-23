@@ -7,9 +7,29 @@ import importRoutes from './routes/importRoutes';
 
 dotenv.config();
 
+function getPort(): number {
+  // 1. CLI argument (--port 3000 used by AI Studio preview container)
+  const portArgIdx = process.argv.indexOf('--port');
+  if (portArgIdx !== -1 && process.argv[portArgIdx + 1]) {
+    const parsed = Number(process.argv[portArgIdx + 1]);
+    if (!isNaN(parsed)) return parsed;
+  }
+
+  // 2. Explicit PORT in .env (if set to 3001)
+  if (process.env.PORT) {
+    const envPort = Number(process.env.PORT);
+    if (!isNaN(envPort) && envPort !== 8080) {
+      return envPort;
+    }
+  }
+
+  // 3. Default port: 3001 (freeing 3000 for user's other apps)
+  return 3001;
+}
+
 export async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = getPort();
 
   // Middlewares
   app.use(express.json({ limit: '50mb' }));
@@ -57,7 +77,13 @@ export async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 [Backend Node.js] Serveur OMODA | JAECOO actif sur http://0.0.0.0:${PORT}`);
+    console.log(`\n========================================================================`);
+    console.log(`🚗 OMODA | JAECOO STATS - Serveur Unique Actif`);
+    console.log(`========================================================================`);
+    console.log(`⚙️  [1/2] Backend API Node.js / Express : http://localhost:${PORT}/api`);
+    console.log(`🍃  [BDD] Base de données MongoDB       : ${DEFAULT_DB_NAME}`);
+    console.log(`💻  [2/2] Frontend React / Vite (SPA)   : http://localhost:${PORT}`);
+    console.log(`========================================================================\n`);
   });
 }
 
