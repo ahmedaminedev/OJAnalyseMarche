@@ -987,7 +987,7 @@ export const ImportedFilesList: React.FC<ImportedFilesListProps> = ({
                     type="text"
                     value={testUri}
                     onChange={(e) => setTestUri(e.target.value)}
-                    placeholder="mongodb+srv://user:pass@cluster.mongodb.net/omoda_jaecoo_stats_db"
+                    placeholder="mongodb://127.0.0.1:27017/omoda_jaecoo_stats_db"
                     className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
                   />
                   <button
@@ -999,12 +999,12 @@ export const ImportedFilesList: React.FC<ImportedFilesListProps> = ({
                     {isTestingUri ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Test en cours...</span>
+                        <span>Connexion...</span>
                       </>
                     ) : (
                       <>
                         <Check className="w-3.5 h-3.5" />
-                        <span>Tester & Connecter</span>
+                        <span>Connecter Base Locale</span>
                       </>
                     )}
                   </button>
@@ -1028,66 +1028,58 @@ export const ImportedFilesList: React.FC<ImportedFilesListProps> = ({
                 )}
               </div>
 
-              {/* 3 Solutions */}
+              {/* Guide Base Locale & Compass */}
               <div className="space-y-4">
                 <h4 className="font-bold text-white text-xs uppercase tracking-wider text-slate-200">
-                  Comment connecter et visualiser vos données dans MongoDB Compass :
+                  Visualiser vos données dans MongoDB Compass en local :
                 </h4>
 
-                {/* Solution 1: MongoDB Atlas (Recommended) */}
+                {/* Option 1: MongoDB Compass Local */}
                 <div className="p-4 rounded-xl bg-[#0d1627] border border-slate-800 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-emerald-400 flex items-center gap-1.5 text-xs">
                       <span className="w-5 h-5 rounded-full bg-emerald-950/80 border border-emerald-700/60 flex items-center justify-center text-[10px] text-emerald-300 font-bold">1</span>
-                      <span>Option Recommandée : MongoDB Atlas (Cloud Gratuit)</span>
+                      <span>Base Locale MongoDB (Machine Locale)</span>
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 font-medium">
-                      Sans installation
+                      Port 27017
                     </span>
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Créez une base de données gratuite sur <a href="https://www.mongodb.com/cloud/atlas" target="_blank" rel="noreferrer" className="text-emerald-400 hover:underline inline-flex items-center gap-1">MongoDB Atlas <ExternalLink className="w-3 h-3" /></a>, puis connectez à la fois l'application et votre Compass :
+                    Sur votre ordinateur, ouvrez simplement <strong>MongoDB Compass</strong> et collez la chaîne de connexion locale :
                   </p>
 
-                  <ol className="list-decimal list-inside text-xs space-y-1.5 text-slate-400 pl-1">
-                    <li>Créez un cluster gratuit <strong>M0</strong> sur MongoDB Atlas.</li>
-                    <li>Cliquez sur <strong>Connect</strong> &gt; <strong>Drivers (Node.js)</strong> et copiez votre URI de connexion :</li>
-                  </ol>
-
                   <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between gap-2">
-                    <code className="text-[11px] font-mono text-slate-300 truncate">
-                      mongodb+srv://utilisateur:motdepasse@cluster0.xxx.mongodb.net/omoda_jaecoo_stats_db
+                    <code className="text-[11px] font-mono text-emerald-300 truncate">
+                      mongodb://127.0.0.1:27017/omoda_jaecoo_stats_db
                     </code>
                     <button
                       type="button"
-                      onClick={() => handleCopy('mongodb+srv://<username>:<password>@cluster0.xxx.mongodb.net/omoda_jaecoo_stats_db?retryWrites=true&w=majority', 'atlas')}
-                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 flex-shrink-0"
+                      onClick={() => handleCopy('mongodb://127.0.0.1:27017/omoda_jaecoo_stats_db', 'compass_local')}
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 flex-shrink-0 cursor-pointer"
                     >
-                      {copiedText === 'atlas' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedText === 'atlas' ? 'Copié !' : 'Copier'}</span>
+                      {copiedText === 'compass_local' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedText === 'compass_local' ? 'Copié !' : 'Copier'}</span>
                     </button>
                   </div>
 
                   <p className="text-[11px] text-slate-400">
-                    Définissez la variable d'environnement <strong className="text-white font-mono">MONGODB_URI</strong> dans le fichier <code className="text-emerald-400 font-mono">.env</code> ou dans les <strong>Settings (Paramètres)</strong> de l'application. Connectez ensuite votre Compass à cette même URL pour voir la base <strong className="text-emerald-400 font-mono">omoda_jaecoo_stats_db</strong> et ses collections !
+                    Vous accédez directement à la base de données <strong className="text-white font-mono">omoda_jaecoo_stats_db</strong> et à toutes vos collections : <code className="text-emerald-400 font-mono">datasets</code> et <code className="text-emerald-400 font-mono">rows</code>.
                   </p>
                 </div>
 
-                {/* Solution 2: Exécuter en local */}
+                {/* Option 2: Lancer le projet en local */}
                 <div className="p-4 rounded-xl bg-[#0d1627] border border-slate-800 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sky-400 flex items-center gap-1.5 text-xs">
                       <span className="w-5 h-5 rounded-full bg-sky-950/80 border border-sky-700/60 flex items-center justify-center text-[10px] text-sky-300 font-bold">2</span>
-                      <span>Option Locale : Lancer le projet sur votre propre PC</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] bg-sky-950/60 text-sky-300 border border-sky-800/60 font-medium">
-                      Direct Compass local
+                      <span>Démarrage du projet en local</span>
                     </span>
                   </div>
 
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Si vous téléchargez le code source de l'application sur votre PC (via le menu Paramètres &gt; Exporter en ZIP ou GitHub) :
+                    Dans votre dossier de projet local (<code className="text-slate-300 font-mono text-[11px]">C:\Users\ADMIN\Desktop\OJAnalyseMarche</code>) :
                   </p>
 
                   <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between gap-2">
@@ -1097,29 +1089,12 @@ export const ImportedFilesList: React.FC<ImportedFilesListProps> = ({
                     <button
                       type="button"
                       onClick={() => handleCopy('npm install && npm run dev', 'local')}
-                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 flex-shrink-0"
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] flex items-center gap-1 flex-shrink-0 cursor-pointer"
                     >
                       {copiedText === 'local' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
                       <span>{copiedText === 'local' ? 'Copié !' : 'Copier'}</span>
                     </button>
                   </div>
-
-                  <p className="text-[11px] text-slate-400">
-                    Sur votre machine, le serveur contactera directement votre <strong className="text-white font-mono">localhost:27017</strong> et vous verrez immédiatement apparaître la base <strong className="text-emerald-400 font-mono">omoda_jaecoo_stats_db</strong> dans votre Compass !
-                  </p>
-                </div>
-
-                {/* Solution 3: Tunnel ngrok */}
-                <div className="p-4 rounded-xl bg-[#0d1627] border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-purple-400 flex items-center gap-1.5 text-xs">
-                      <span className="w-5 h-5 rounded-full bg-purple-950/80 border border-purple-700/60 flex items-center justify-center text-[10px] text-purple-300 font-bold">3</span>
-                      <span>Option Tunnel : Exposer votre MongoDB local via ngrok</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Exécutez <code className="bg-slate-900 px-1 py-0.5 rounded text-purple-300 font-mono">ngrok tcp 27017</code> sur votre machine, puis renseignez l'adresse TCP générée dans la variable <code className="bg-slate-900 px-1 py-0.5 rounded text-white font-mono">MONGODB_URI</code>.
-                  </p>
                 </div>
               </div>
             </div>

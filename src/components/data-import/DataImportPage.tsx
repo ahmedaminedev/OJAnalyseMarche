@@ -18,7 +18,6 @@ import { SheetSelector } from './SheetSelector';
 import { ImportSummary } from './ImportSummary';
 import { FilePreviewTable } from './FilePreviewTable';
 import { ImportValidation } from './ImportValidation';
-import { MongoConnectionModal } from './MongoConnectionModal';
 import { ExcelParseResult, ImportedFileRecord, ImportStatus } from '../../types/import';
 import { parseExcelFile } from '../../utils/excelParser';
 import { importService, ChunkProgress } from '../../services/importService';
@@ -40,23 +39,18 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
   const [activeSheetName, setActiveSheetName] = useState<string>('');
   const [parseError, setParseError] = useState<string | null>(null);
 
-  // MongoDB connection state
-  const [isMongoConnected, setIsMongoConnected] = useState(false);
-  const [backendHost, setBackendHost] = useState('Non configuré');
+  // Database state
   const [databaseName, setDatabaseName] = useState('omoda_jaecoo_stats_db');
-  const [showMongoModal, setShowMongoModal] = useState(false);
 
-  // Check MongoDB connection status on mount
+  // Check database status on mount
   const checkMongoStatus = useCallback(async () => {
     try {
       const health = await importService.getHealth();
       if (health && health.database) {
-        setIsMongoConnected(Boolean(health.database.connected));
-        if (health.database.host) setBackendHost(health.database.host);
         if (health.database.name) setDatabaseName(health.database.name);
       }
     } catch {
-      setIsMongoConnected(false);
+      // Ignored
     }
   }, []);
 
@@ -123,14 +117,9 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
 
   const activeSheetAnalysis = parseResult && activeSheetName ? parseResult.sheets[activeSheetName] : null;
 
-  // Handle final import confirmation using Chunked Batch Import protocol
+  // Handle final import confirmation directly to backend local database
   const handleConfirmImport = async (replaceIfExists = false) => {
     if (!parseResult || !activeSheetAnalysis || !selectedFile) return;
-
-    if (!isMongoConnected) {
-      setShowMongoModal(true);
-      return;
-    }
 
     setIsSubmitting(true);
     setParseError(null);
@@ -167,16 +156,6 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
           err?.message ||
           "Erreur lors de l'enregistrement dans la base de données backend. Le fichier n'a pas été enregistré.";
         setParseError(errorMsg);
-
-        if (
-          errorMsg.includes('MongoDB') ||
-          errorMsg.includes('503') ||
-          errorMsg.includes('déconnectée') ||
-          errorMsg.includes('injoignable')
-        ) {
-          setIsMongoConnected(false);
-          setShowMongoModal(true);
-        }
       }
     } finally {
       setIsSubmitting(false);
@@ -212,43 +191,6 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
         </button>
       </div>
 
-      {/* MongoDB Disconnected Warning Strip */}
-      {!isMongoConnected && (
-        <motion.div
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-4 rounded-2xl bg-[#141b2d] border border-amber-500/50 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-950/70 text-amber-400 border border-amber-700/70 flex items-center justify-center flex-shrink-0">
-              <Database className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white">
-                  Base de données MongoDB non connectée
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-950/80 text-amber-300 border border-amber-800/80">
-                  HTTP 503
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                L'application applique une persistance réelle sans données simulées. Connectez votre base MongoDB (ex : cluster gratuit Atlas M0) pour pouvoir enregistrer vos fichiers.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowMongoModal(true)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer flex-shrink-0 shadow transition-all active:scale-95"
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Connecter MongoDB</span>
-          </button>
-        </motion.div>
-      )}
-
       {/* Error Banner */}
       {parseError && (
         <motion.div
@@ -266,25 +208,13 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {(parseError.includes('MongoDB') || parseError.includes('503') || !isMongoConnected) && (
-              <button
-                type="button"
-                onClick={() => setShowMongoModal(true)}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow transition-all active:scale-95"
-              >
-                <Database className="w-3.5 h-3.5" />
-                <span>Connecter MongoDB</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setParseError(null)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setParseError(null)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </motion.div>
       )}
 
@@ -536,9 +466,7 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
                   sheetAnalysis={activeSheetAnalysis}
                   canConfirm={!isParsing && Boolean(parseResult)}
                   isSubmitting={isSubmitting}
-                  isMongoConnected={isMongoConnected}
                   databaseName={databaseName}
-                  onOpenMongoModal={() => setShowMongoModal(true)}
                   onConfirm={() => handleConfirmImport(false)}
                   onCancel={handleReset}
                 />
@@ -547,19 +475,6 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
           </div>
         )}
       </AnimatePresence>
-
-      {/* MongoDB Connection Modal */}
-      <MongoConnectionModal
-        isOpen={showMongoModal}
-        onClose={() => setShowMongoModal(false)}
-        onConnected={async () => {
-          await checkMongoStatus();
-          setParseError(null);
-        }}
-        isConnected={isMongoConnected}
-        currentHost={backendHost}
-        databaseName={databaseName}
-      />
     </div>
   );
 };
