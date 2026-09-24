@@ -112,7 +112,11 @@ function matchQuery(doc: any, query?: any): boolean {
 
     if (expected && typeof expected === 'object' && !(expected instanceof ObjectId) && !(expected instanceof Date)) {
       if ('$ne' in expected) {
-        if (actual === expected.$ne) return false;
+        if (expected.$ne === null) {
+          if (actual == null) return false;
+        } else if (actual === expected.$ne) {
+          return false;
+        }
         continue;
       }
       if ('$exists' in expected) {
@@ -147,11 +151,17 @@ function matchQuery(doc: any, query?: any): boolean {
       }
     }
 
-    // Direct comparison
-    if (expected instanceof ObjectId) {
-      if (!actual || actual.toString() !== expected.toString()) return false;
-    } else if (actual instanceof ObjectId) {
-      if (!expected || actual.toString() !== expected.toString()) return false;
+    // Direct comparison (supports ObjectId, string IDs, dates, numbers, booleans)
+    const isIdField = key === '_id' || key === 'datasetId' || key.endsWith('Id');
+    if (
+      expected instanceof ObjectId ||
+      actual instanceof ObjectId ||
+      isIdField
+    ) {
+      const expStr = expected != null ? (typeof expected.toHexString === 'function' ? expected.toHexString() : String(expected)) : '';
+      const actStr = actual != null ? (typeof actual.toHexString === 'function' ? actual.toHexString() : String(actual)) : '';
+      if (expStr !== actStr) return false;
+      continue;
     } else if (actual !== expected) {
       return false;
     }
@@ -184,7 +194,19 @@ export function createLocalCollection<T extends { _id?: any }>(
     async findOne(query?: any, options?: any): Promise<T | null> {
       const store = getStore();
       const item = store.find((doc) => matchQuery(doc, query));
-      return item ? JSON.parse(JSON.stringify(item)) : null;
+      if (!item) return null;
+      const clone = JSON.parse(JSON.stringify(item));
+      if (item._id instanceof ObjectId) {
+        clone._id = item._id;
+      } else if (clone._id) {
+        try { clone._id = new ObjectId(clone._id); } catch {}
+      }
+      if (item.datasetId instanceof ObjectId) {
+        clone.datasetId = item.datasetId;
+      } else if (clone.datasetId) {
+        try { clone.datasetId = new ObjectId(clone.datasetId); } catch {}
+      }
+      return clone;
     },
 
     find(query?: any, options?: any) {
@@ -235,7 +257,20 @@ export function createLocalCollection<T extends { _id?: any }>(
           if (limitCount !== null) {
             list = list.slice(0, limitCount);
           }
-          return JSON.parse(JSON.stringify(list));
+          return list.map((item) => {
+            const clone = JSON.parse(JSON.stringify(item));
+            if (item._id instanceof ObjectId) {
+              clone._id = item._id;
+            } else if (clone._id) {
+              try { clone._id = new ObjectId(clone._id); } catch {}
+            }
+            if (item.datasetId instanceof ObjectId) {
+              clone.datasetId = item.datasetId;
+            } else if (clone.datasetId) {
+              try { clone.datasetId = new ObjectId(clone.datasetId); } catch {}
+            }
+            return clone;
+          });
         },
       };
 
@@ -270,10 +305,20 @@ export function createLocalCollection<T extends { _id?: any }>(
       return { insertedCount: docs.length };
     },
 
-    async updateOne(filter: any, update: any, options?: any): Promise<{ modifiedCount: number }> {
+    async updateOne(filter: any, update: any, options?: any): Promise<{ modifiedCount: number; upsertedCount?: number }> {
       const store = getStore();
       const index = store.findIndex((doc) => matchQuery(doc, filter));
-      if (index === -1) return { modifiedCount: 0 };
+      if (index === -1) {
+        if (options && options.upsert) {
+          const newDoc: any = { _id: new ObjectId(), ...filter };
+          if (update.$set) Object.assign(newDoc, update.$set);
+          if (update.$setOnInsert) Object.assign(newDoc, update.$setOnInsert);
+          store.push(newDoc);
+          persist();
+          return { modifiedCount: 1, upsertedCount: 1 };
+        }
+        return { modifiedCount: 0 };
+      }
 
       const doc = store[index];
       if (update.$set) {
@@ -317,19 +362,53 @@ export function createLocalCollection<T extends { _id?: any }>(
       return store.filter((doc) => matchQuery(doc, filter)).length;
     },
 
-    async bulkWrite(ops: any[], options?: any): Promise<{ insertedCount: number }> {
+    async bulkWrite(ops: any[], options?: any): Promise<{ insertedCount: number; modifiedCount: number; upsertedCount: number }> {
       const store = getStore();
-      let count = 0;
+      let insertedCount = 0;
+      let modifiedCount = 0;
+      let upsertedCount = 0;
+
       for (const op of ops) {
         if (op.insertOne && op.insertOne.document) {
           const clone: any = { ...op.insertOne.document };
           if (!clone._id) clone._id = new ObjectId();
           store.push(clone);
-          count++;
+          insertedCount++;
+        } else if (op.updateOne) {
+          const { filter, update, upsert } = op.updateOne;
+          const index = store.findIndex((doc) => matchQuery(doc, filter));
+          if (index !== -1) {
+            const doc = store[index];
+            if (update.$set) Object.assign(doc, update.$set);
+            if (update.$inc) {
+              for (const k of Object.keys(update.$inc)) {
+                doc[k] = (doc[k] || 0) + update.$inc[k];
+              }
+            }
+            modifiedCount++;
+          } else if (upsert) {
+            const newDoc: any = { _id: new ObjectId(), ...filter };
+            if (update.$set) Object.assign(newDoc, update.$set);
+            if (update.$setOnInsert) Object.assign(newDoc, update.$setOnInsert);
+            store.push(newDoc);
+            upsertedCount++;
+          }
+        } else if (op.replaceOne) {
+          const { filter, replacement, upsert } = op.replaceOne;
+          const index = store.findIndex((doc) => matchQuery(doc, filter));
+          if (index !== -1) {
+            const existingId = store[index]._id;
+            store[index] = { ...replacement, _id: existingId };
+            modifiedCount++;
+          } else if (upsert) {
+            const newDoc: any = { _id: new ObjectId(), ...replacement };
+            store.push(newDoc);
+            upsertedCount++;
+          }
         }
       }
       persist();
-      return { insertedCount: count };
+      return { insertedCount, modifiedCount, upsertedCount };
     },
 
     async createIndex(spec: any, options?: any): Promise<string> {
@@ -354,17 +433,19 @@ export function createLocalCollection<T extends { _id?: any }>(
 
               for (const doc of currentDocs) {
                 let groupKey = 'null';
+                let idValue: any = null;
                 if (idExpr && typeof idExpr === 'string' && idExpr.startsWith('$')) {
                   const pathKey = idExpr.slice(1);
-                  groupKey = String(pathKey.split('.').reduce((o, i) => o?.[i], doc) ?? 'null');
+                  idValue = pathKey.split('.').reduce((o, i) => o?.[i], doc);
+                  groupKey = idValue instanceof Date ? idValue.toISOString() : String(idValue ?? 'null');
+                } else if (idExpr !== null && idExpr !== undefined) {
+                  idValue = idExpr;
+                  groupKey = String(idExpr);
                 }
 
                 if (!resultsMap.has(groupKey)) {
                   const entry: any = {
-                    _id:
-                      idExpr && typeof idExpr === 'string' && idExpr.startsWith('$')
-                        ? idExpr.slice(1).split('.').reduce((o, i) => o?.[i], doc)
-                        : null,
+                    _id: idValue,
                   };
                   // initialize aggregators
                   for (const [k, agg] of Object.entries(groupSpec)) {
@@ -389,16 +470,18 @@ export function createLocalCollection<T extends { _id?: any }>(
                       const val = aggObj.$sum.slice(1).split('.').reduce((o: any, i: any) => o?.[i], doc);
                       const num = Number(val);
                       if (!isNaN(num)) entry[k] += num;
+                    } else if (typeof aggObj.$sum === 'number') {
+                      entry[k] += aggObj.$sum;
                     }
                   } else if (aggObj.$min !== undefined) {
-                    const pathKey = aggObj.$min.slice(1);
-                    const val = pathKey.split('.').reduce((o: any, i: any) => o?.[i], doc);
+                    const pathKey = typeof aggObj.$min === 'string' && aggObj.$min.startsWith('$') ? aggObj.$min.slice(1) : '';
+                    const val = pathKey ? pathKey.split('.').reduce((o: any, i: any) => o?.[i], doc) : null;
                     if (val != null) {
                       if (entry[k] === null || val < entry[k]) entry[k] = val;
                     }
                   } else if (aggObj.$max !== undefined) {
-                    const pathKey = aggObj.$max.slice(1);
-                    const val = pathKey.split('.').reduce((o: any, i: any) => o?.[i], doc);
+                    const pathKey = typeof aggObj.$max === 'string' && aggObj.$max.startsWith('$') ? aggObj.$max.slice(1) : '';
+                    const val = pathKey ? pathKey.split('.').reduce((o: any, i: any) => o?.[i], doc) : null;
                     if (val != null) {
                       if (entry[k] === null || val > entry[k]) entry[k] = val;
                     }
