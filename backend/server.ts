@@ -12,6 +12,7 @@ import datasetRoutes from './routes/datasetRoutes';
 import importRoutes from './routes/importRoutes';
 import marketRoutes from './routes/marketRoutes';
 import assistantRoutes from './routes/assistantRoutes';
+import queryRoutes from './routes/queryRoutes';
 import { cleanupLegacyDefaultData } from './data/seedMarketData';
 
 dotenv.config();
@@ -37,7 +38,7 @@ export async function startServer() {
   const app = express();
   const PORT = getPort();
 
-  // Middlewares: JSON limit 5MB for chunk uploads (each chunk is max 2000 rows, typically < 2MB)
+  // Middlewares: JSON limit 10MB for chunk uploads
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -52,29 +53,21 @@ export async function startServer() {
       console.warn('MongoDB connection error:', err?.message || err);
     });
 
-  // Health route - Local database status
+  // Health route - Real database status
   app.get('/api/health', (_req, res) => {
     const dbInfo = getDatabaseInfo();
     const connected = isMongoConnected();
     res.json({
-      status: 'ok',
+      status: connected ? 'ok' : 'degraded',
       service: 'OMODA | JAECOO Backend API',
-      database: {
-        name: DEFAULT_DB_NAME,
-        host: dbInfo.host,
-        cluster: dbInfo.cluster,
-        edition: dbInfo.edition,
-        connected: true,
-        status: dbInfo.isLocalFallback
-          ? 'Connecté à la base locale (Stockage local persistant)'
-          : 'Connecté à MongoDB local (127.0.0.1:27017)',
-      },
+      database: dbInfo,
       timestamp: new Date().toISOString(),
     });
   });
 
   // API Routes
   app.use('/api/datasets', datasetRoutes);
+  app.use('/api/query', queryRoutes);
   app.use('/api/imports', importRoutes);
   app.use('/api/market-stats', marketRoutes);
   app.use('/api/assistant', assistantRoutes);

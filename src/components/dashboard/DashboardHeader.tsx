@@ -66,6 +66,17 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <nav className="hidden md:flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800/80">
           <button
             type="button"
+            onClick={() => onSelectItem('Analyse & Graphiques')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeItem === 'Analyse & Graphiques'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            Analyse & Graphiques
+          </button>
+          <button
+            type="button"
             onClick={() => onSelectItem('Importer un fichier')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               activeItem === 'Importer un fichier'

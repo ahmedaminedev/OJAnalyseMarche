@@ -3,20 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { MongoClient, Db, Collection } from 'mongodb';
 import { DatasetDocument, RowDocument } from '../types/dataset';
-import { createLocalCollection } from './localDbStore';
 
 export const DEFAULT_DB_NAME = process.env.MONGODB_DB_NAME?.trim() || 'omoda_jaecoo_stats_db';
-export const DEFAULT_LOCAL_URI = process.env.MONGODB_URI?.trim() || `mongodb://127.0.0.1:27017/${DEFAULT_DB_NAME}`;
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
-let isConnected = true;
-let isLocalFileFallback = true;
+let isConnected = false;
 let connectionPromise: Promise<boolean> | null = null;
-
-// Local persistent collections when mongod is offline
-const localDatasetsCol = createLocalCollection<DatasetDocument>('datasets');
-const localRowsCol = createLocalCollection<RowDocument>('rows');
 
 /**
  * Returns the currently active MongoClient instance
@@ -34,36 +27,38 @@ export function getDb(): Db | null {
 
 /**
  * Access the "datasets" collection
+ * Throws explicit error if MongoDB is not connected
  */
 export function getDatasetsCollection(): Collection<DatasetDocument> {
-  if (db && isConnected && !isLocalFileFallback) {
-    return db.collection<DatasetDocument>('datasets');
+  if (!db || !isConnected) {
+    throw new Error('Base de données MongoDB non connectée ou injoignable.');
   }
-  return localDatasetsCol as unknown as Collection<DatasetDocument>;
+  return db.collection<DatasetDocument>('datasets');
 }
 
 /**
  * Access the "rows" collection
+ * Throws explicit error if MongoDB is not connected
  */
 export function getRowsCollection(): Collection<RowDocument> {
-  if (db && isConnected && !isLocalFileFallback) {
-    return db.collection<RowDocument>('rows');
+  if (!db || !isConnected) {
+    throw new Error('Base de données MongoDB non connectée ou injoignable.');
   }
-  return localRowsCol as unknown as Collection<RowDocument>;
+  return db.collection<RowDocument>('rows');
 }
 
 /**
- * Checks if database is available (Local MongoDB or Local File Store)
+ * Checks if real MongoDB is connected
  */
 export function isMongoConnected(): boolean {
-  return isConnected;
+  return isConnected && db !== null;
 }
 
 /**
  * Setup default indexes on startup
  */
 export async function initializeDatabaseIndexes(): Promise<void> {
-  if (!db || isLocalFileFallback) return;
+  if (!db || !isConnected) return;
   try {
     const datasetsCol = db.collection<DatasetDocument>('datasets');
     const rowsCol = db.collection<RowDocument>('rows');
@@ -71,9 +66,9 @@ export async function initializeDatabaseIndexes(): Promise<void> {
     await datasetsCol.createIndex({ fileHash: 1 });
     await datasetsCol.createIndex({ importedAt: -1 });
     await rowsCol.createIndex({ datasetId: 1, rowNumber: 1 }, { unique: true });
-    console.log('✅ [MongoDB Local] Index initialisés avec succès sur la base locale.');
+    console.log('✅ [MongoDB] Index initialisés avec succès sur la base.');
   } catch (err: any) {
-    console.warn('⚠️ [MongoDB Local] Avertissement lors de la création des index:', err?.message);
+    console.warn('⚠️ [MongoDB] Avertissement lors de la création des index:', err?.message);
   }
 }
 
@@ -81,6 +76,7 @@ export async function initializeDatabaseIndexes(): Promise<void> {
  * Cleanup datasets left in PROCESSING for more than 1 hour on startup
  */
 export async function cleanupStuckProcessingDatasets(): Promise<void> {
+  if (!db || !isConnected) return;
   try {
     const datasetsCol = getDatasetsCollection();
     const rowsCol = getRowsCollection();
@@ -114,13 +110,22 @@ export async function cleanupStuckProcessingDatasets(): Promise<void> {
 }
 
 /**
- * Connects to MongoDB on localhost (127.0.0.1:27017).
- * Falls back transparently to local file storage if mongod is not running.
+ * Connects to MongoDB using official driver.
+ * Strict behavior: if MongoDB is unreachable or MONGODB_URI is not provided,
+ * isConnected is set to false (no silent fallback).
  */
 export async function connectDB(): Promise<boolean> {
-  const targetUri = process.env.MONGODB_URI?.trim() || DEFAULT_LOCAL_URI;
+  const targetUri = process.env.MONGODB_URI?.trim();
 
-  if (isConnected && (db || isLocalFileFallback)) {
+  if (!targetUri) {
+    console.warn('⚠️ [MongoDB] MONGODB_URI non configuré dans .env. MongoDB est déconnecté.');
+    isConnected = false;
+    db = null;
+    client = null;
+    return false;
+  }
+
+  if (isConnected && db) {
     return true;
   }
 
@@ -130,11 +135,11 @@ export async function connectDB(): Promise<boolean> {
 
   connectionPromise = (async () => {
     try {
-      console.log(`🔄 [MongoDB] Connexion à la base de données locale (${targetUri})...`);
+      console.log(`🔄 [MongoDB] Connexion au cluster MongoDB...`);
 
       const newClient = new MongoClient(targetUri, {
-        serverSelectionTimeoutMS: 2000,
-        connectTimeoutMS: 2000,
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
       });
 
       await newClient.connect();
@@ -143,22 +148,18 @@ export async function connectDB(): Promise<boolean> {
       client = newClient;
       db = client.db(DEFAULT_DB_NAME);
       isConnected = true;
-      isLocalFileFallback = false;
 
-      console.log(`✅ [MongoDB] Connecté à la base locale MongoDB 127.0.0.1:27017 (Base: "${DEFAULT_DB_NAME}")`);
+      console.log(`✅ [MongoDB] Connecté avec succès à la base MongoDB "${DEFAULT_DB_NAME}"`);
 
       await initializeDatabaseIndexes();
       await cleanupStuckProcessingDatasets();
       return true;
     } catch (error: any) {
-      // Local mongod is offline or not installed -> fallback to local file persistence
-      console.log(`ℹ️ [Base Locale] Serveur mongod local (127.0.0.1:27017) injoignable (${error?.message || 'timeout'}). Activation du stockage local persistant (JSON/BSON dans backend/data/local_db).`);
+      console.warn(`❌ [MongoDB] Échec de connexion à MongoDB (${error?.message || error}). Aucun fallback simulé.`);
       client = null;
       db = null;
-      isConnected = true;
-      isLocalFileFallback = true;
-      await cleanupStuckProcessingDatasets();
-      return true;
+      isConnected = false;
+      return false;
     } finally {
       connectionPromise = null;
     }
@@ -168,17 +169,17 @@ export async function connectDB(): Promise<boolean> {
 }
 
 /**
- * Reconnect with a local MongoDB URI (ex: mongodb://127.0.0.1:27017/omoda_jaecoo_stats_db)
+ * Reconnect with a MongoDB URI
  */
 export async function reconnectWithUri(newUri: string): Promise<{ success: boolean; message: string }> {
   try {
     if (!newUri || typeof newUri !== 'string') {
-      return { success: false, message: 'URI locale invalide.' };
+      return { success: false, message: 'URI MongoDB invalide.' };
     }
 
     const testClient = new MongoClient(newUri.trim(), {
-      serverSelectionTimeoutMS: 4000,
-      connectTimeoutMS: 4000,
+      serverSelectionTimeoutMS: 6000,
+      connectTimeoutMS: 6000,
     });
 
     await testClient.connect();
@@ -195,7 +196,6 @@ export async function reconnectWithUri(newUri: string): Promise<{ success: boole
     client = testClient;
     db = client.db(DEFAULT_DB_NAME);
     isConnected = true;
-    isLocalFileFallback = false;
     process.env.MONGODB_URI = newUri.trim();
 
     try {
@@ -219,28 +219,30 @@ export async function reconnectWithUri(newUri: string): Promise<{ success: boole
 
     return {
       success: true,
-      message: `Connecté à la base locale "${DEFAULT_DB_NAME}" avec succès !`,
+      message: `Connecté à la base MongoDB "${DEFAULT_DB_NAME}" avec succès !`,
     };
   } catch (error: any) {
     return {
       success: false,
-      message: error?.message || 'Impossible de joindre le serveur MongoDB local.',
+      message: error?.message || 'Impossible de joindre le serveur MongoDB.',
     };
   }
 }
 
 /**
- * Returns real database connectivity and server information (Local DB only)
+ * Returns real database connectivity and server information
  */
 export function getDatabaseInfo() {
-  const isMongoLocal = isConnected && !isLocalFileFallback && db !== null;
+  const connected = isConnected && db !== null;
 
   return {
     databaseName: DEFAULT_DB_NAME,
-    host: isMongoLocal ? '127.0.0.1:27017 (Local)' : 'Stockage Local Persistant',
-    cluster: 'Base Locale (omoda_jaecoo_stats_db)',
-    edition: isMongoLocal ? 'MongoDB Local (127.0.0.1:27017)' : 'Stockage Local Fichiers',
-    connected: true,
-    isLocalFallback: isLocalFileFallback,
+    host: connected ? (process.env.MONGODB_URI ? 'MongoDB Atlas' : '127.0.0.1:27017') : 'Non connecté',
+    cluster: connected ? `Base active (${DEFAULT_DB_NAME})` : 'Déconnecté',
+    edition: connected ? 'Driver Officiel MongoDB' : 'Injoignable (HTTP 503)',
+    connected,
+    status: connected
+      ? `Connecté à MongoDB (${DEFAULT_DB_NAME})`
+      : 'Déconnecté : configurez MONGODB_URI dans les variables d’environnement.',
   };
 }

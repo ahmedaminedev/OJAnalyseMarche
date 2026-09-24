@@ -3,6 +3,7 @@ import {
   Upload,
   Database,
   FileSpreadsheet,
+  BarChart3,
 } from 'lucide-react';
 import { ASSETS } from '../../data/mockData';
 
@@ -73,6 +74,32 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             <div className="flex flex-col">
               <span className="font-semibold tracking-wide text-white">Importer un fichier</span>
               <span className="text-[11px] text-slate-400">Excel (.xlsx, .xls)</span>
+            </div>
+          </button>
+
+          {/* Analyse & Graphiques (Power BI style) */}
+          <button
+            id="sidebar-analytics-btn"
+            type="button"
+            onClick={() => handleItemClick('Analyse & Graphiques')}
+            className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+              activeItem === 'Analyse & Graphiques'
+                ? 'bg-[#1b1522] text-white border-l-4 border-[#ff284d] shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <div
+              className={`p-1.5 rounded-lg ${
+                activeItem === 'Analyse & Graphiques'
+                  ? 'bg-gradient-to-tr from-red-600 to-rose-500 text-white shadow-md shadow-red-600/30'
+                  : 'text-slate-400 bg-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-semibold tracking-wide text-white">Analyse & Graphiques</span>
+              <span className="text-[11px] text-slate-400">Power BI Universel</span>
             </div>
           </button>
 

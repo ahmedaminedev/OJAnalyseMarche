@@ -881,3 +881,35 @@ export function executeDynamicAnalysis(
     }),
   };
 }
+
+/**
+ * Suggests an initial semantic mapping for newly imported datasets.
+ * Used exclusively during file import wizard (Step 6) to suggest mappings to user.
+ * Confirmed mapping is then stored in dataset.mapping and queried via generic /api/datasets/:id/query.
+ */
+export function suggestSemanticMapping(columns: Array<{ key: string; label: string; type: string }>): Record<string, string> {
+  const mapping: Record<string, string> = {};
+
+  for (const col of columns) {
+    const headerLower = col.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    if (!mapping.brand && /\b(marq|marque|marques|brand|make|constructeur)\b/.test(headerLower)) {
+      mapping.brand = col.key;
+    } else if (!mapping.model && /\b(model|modele|modeles|version|gamme)\b/.test(headerLower)) {
+      mapping.model = col.key;
+    } else if (!mapping.volume && col.type === 'number' && /\b(vent|vente|ventes|volume|immat|immatriculation|qte|quantite|unite|total)\b/.test(headerLower)) {
+      mapping.volume = col.key;
+    } else if (!mapping.date && (col.type === 'date' || /\b(date|mois|annee|periode|trimestre)\b/.test(headerLower))) {
+      mapping.date = col.key;
+    } else if (!mapping.energy && /\b(energ|energie|carburant|motorisation|fuel)\b/.test(headerLower)) {
+      mapping.energy = col.key;
+    } else if (!mapping.region && /\b(reg|region|gouvernorat|ville|pays|territoire|zone)\b/.test(headerLower)) {
+      mapping.region = col.key;
+    } else if (!mapping.segment && /\b(seg|segment|categorie|silhouette|carrosserie)\b/.test(headerLower)) {
+      mapping.segment = col.key;
+    }
+  }
+
+  return mapping;
+}
+
