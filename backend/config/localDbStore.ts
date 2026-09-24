@@ -141,7 +141,16 @@ function matchQuery(doc: any, query?: any): boolean {
         continue;
       }
       if ('$in' in expected && Array.isArray(expected.$in)) {
-        if (!expected.$in.includes(actual)) return false;
+        const isId = key === '_id' || key === 'datasetId' || key.endsWith('Id');
+        const matches = expected.$in.some((item: any) => {
+          if (item instanceof ObjectId || actual instanceof ObjectId || isId) {
+            const itemStr = item != null ? (typeof item.toHexString === 'function' ? item.toHexString() : String(item)) : '';
+            const actStr = actual != null ? (typeof actual.toHexString === 'function' ? actual.toHexString() : String(actual)) : '';
+            return itemStr === actStr;
+          }
+          return item === actual;
+        });
+        if (!matches) return false;
         continue;
       }
       if ('$regex' in expected) {

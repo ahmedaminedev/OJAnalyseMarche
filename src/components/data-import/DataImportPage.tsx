@@ -68,6 +68,7 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
     existingImportedAt: string;
     message: string;
   } | null>(null);
+  const [replaceIfExists, setReplaceIfExists] = useState<boolean>(true);
 
   // Handle file selection and initiate client parsing
   const handleFileSelected = async (file: File) => {
@@ -118,8 +119,10 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
   const activeSheetAnalysis = parseResult && activeSheetName ? parseResult.sheets[activeSheetName] : null;
 
   // Handle final import confirmation directly to backend local database
-  const handleConfirmImport = async (replaceIfExists = false) => {
+  const handleConfirmImport = async (forceReplace?: boolean) => {
     if (!parseResult || !activeSheetAnalysis || !selectedFile) return;
+
+    const shouldReplace = typeof forceReplace === 'boolean' ? forceReplace : replaceIfExists;
 
     setIsSubmitting(true);
     setParseError(null);
@@ -132,7 +135,7 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
         activeSheetName,
         sheetAnalysis: activeSheetAnalysis,
         currentUserEmail,
-        replaceIfExists,
+        replaceIfExists: shouldReplace,
         onProgress: (p) => {
           setBatchProgress(p);
         },
@@ -142,9 +145,8 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
       setParseError(null);
       setDuplicateConflict(null);
     } catch (err: any) {
-      console.error("Erreur lors de l'enregistrement dans la base de données backend:", err);
-
       if (err.isDuplicate) {
+        console.warn("Fichier identique déjà présent dans la base de données:", err.message);
         setDuplicateConflict({
           existingDatasetId: err.existingDatasetId,
           existingFileName: err.existingFileName,
@@ -152,6 +154,7 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
           message: err.message,
         });
       } else {
+        console.error("Erreur lors de l'enregistrement dans la base de données backend:", err);
         const errorMsg =
           err?.message ||
           "Erreur lors de l'enregistrement dans la base de données backend. Le fichier n'a pas été enregistré.";
@@ -467,7 +470,9 @@ export const DataImportPage: React.FC<DataImportPageProps> = ({
                   canConfirm={!isParsing && Boolean(parseResult)}
                   isSubmitting={isSubmitting}
                   databaseName={databaseName}
-                  onConfirm={() => handleConfirmImport(false)}
+                  replaceIfExists={replaceIfExists}
+                  onToggleReplace={setReplaceIfExists}
+                  onConfirm={() => handleConfirmImport()}
                   onCancel={handleReset}
                 />
               </motion.div>

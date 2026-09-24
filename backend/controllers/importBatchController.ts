@@ -70,28 +70,39 @@ export async function initImport(req: Request, res: Response): Promise<void> {
     const datasetsCol = getDatasetsCollection();
     const rowsCol = getRowsCollection();
 
-    // Check duplicate file by fileHash
-    const existingDataset = await datasetsCol.findOne({
+    // 1. Automatically purge any previous failed, interrupted, or cancelled imports for this fileHash
+    const staleDatasets = await datasetsCol.find({
       fileHash,
-      status: { $ne: 'CANCELLED' },
+      status: { $in: ['ERROR', 'PROCESSING', 'CANCELLED'] },
+    }).toArray();
+
+    for (const stale of staleDatasets) {
+      await rowsCol.deleteMany({ datasetId: stale._id });
+      await datasetsCol.deleteOne({ _id: stale._id });
+    }
+
+    // 2. Check for an existing successfully imported dataset
+    const existingSuccessDataset = await datasetsCol.findOne({
+      fileHash,
+      status: 'SUCCESS',
     });
 
-    if (existingDataset) {
+    if (existingSuccessDataset) {
       if (!replace) {
         res.status(409).json({
           error: 'Un fichier identique a déjà été importé.',
-          existingDatasetId: existingDataset._id.toString(),
-          existingFileName: existingDataset.fileName,
-          existingImportedAt: existingDataset.importedAt,
-          status: existingDataset.status,
-          message: 'Souhaitez-vous remplacer le jeu de données existant ou annuler ?',
+          existingDatasetId: existingSuccessDataset._id.toString(),
+          existingFileName: existingSuccessDataset.fileName,
+          existingImportedAt: existingSuccessDataset.importedAt,
+          status: existingSuccessDataset.status,
+          message: 'Ce fichier a déjà été importé avec succès. Souhaitez-vous écraser et remplacer le jeu de données existant ou annuler ?',
         });
         return;
       }
 
       // Replace confirmed: delete existing rows and previous dataset
-      await rowsCol.deleteMany({ datasetId: existingDataset._id });
-      await datasetsCol.deleteOne({ _id: existingDataset._id });
+      await rowsCol.deleteMany({ datasetId: existingSuccessDataset._id });
+      await datasetsCol.deleteOne({ _id: existingSuccessDataset._id });
     }
 
     // Build unique, safe technical keys for each column

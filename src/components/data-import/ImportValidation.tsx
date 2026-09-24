@@ -14,6 +14,8 @@ interface ImportValidationProps {
   canConfirm: boolean;
   isSubmitting: boolean;
   databaseName?: string;
+  replaceIfExists?: boolean;
+  onToggleReplace?: (val: boolean) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -23,6 +25,8 @@ export const ImportValidation: React.FC<ImportValidationProps> = ({
   canConfirm,
   isSubmitting,
   databaseName = 'omoda_jaecoo_stats_db',
+  replaceIfExists = true,
+  onToggleReplace,
   onConfirm,
   onCancel,
 }) => {
@@ -72,6 +76,19 @@ export const ImportValidation: React.FC<ImportValidationProps> = ({
 
       {/* Right buttons */}
       <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+        {onToggleReplace && (
+          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none bg-slate-900/80 hover:bg-slate-900 px-3 py-2 rounded-xl border border-slate-700/70">
+            <input
+              type="checkbox"
+              checked={replaceIfExists}
+              onChange={(e) => onToggleReplace(e.target.checked)}
+              disabled={isSubmitting}
+              className="w-3.5 h-3.5 rounded accent-[#ff284d] cursor-pointer"
+            />
+            <span className="text-[11px] font-medium text-slate-300">Écraser si déjà importé</span>
+          </label>
+        )}
+
         <button
           type="button"
           onClick={onCancel}
