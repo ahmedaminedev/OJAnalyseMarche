@@ -13,21 +13,52 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Ignore WebSocket / HMR errors per AI Studio environment constraints
-      window.addEventListener('unhandledrejection', function(event) {
-        var msg = (event && event.reason && (event.reason.message || event.reason.toString())) || '';
-        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        }
-      });
-      window.addEventListener('error', function(event) {
-        var msg = (event && event.message) || '';
-        if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-        }
-      });
+      // Per AI Studio constraints: HMR is disabled, ignore WebSocket errors.
+      (function() {
+        // 1. Intercept console.error / console.warn for Vite websocket messages
+        var origError = console.error;
+        var origWarn = console.warn;
+        var isWsError = function(args) {
+          for (var i = 0; i < args.length; i++) {
+            var str = String(args[i] || '');
+            if (
+              str.indexOf('[vite] failed to connect to websocket') !== -1 ||
+              str.indexOf('WebSocket closed without opened') !== -1 ||
+              str.indexOf('WebSocket connection to') !== -1
+            ) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        console.error = function() {
+          if (isWsError(arguments)) return;
+          origError.apply(console, arguments);
+        };
+
+        console.warn = function() {
+          if (isWsError(arguments)) return;
+          origWarn.apply(console, arguments);
+        };
+
+        // 2. Prevent window-level unhandled rejection / error events
+        window.addEventListener('unhandledrejection', function(event) {
+          var msg = (event && event.reason && (event.reason.message || event.reason.toString())) || '';
+          if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          var msg = (event && event.message) || '';
+          if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
     </script>
   </head>
   <body class="bg-[#070b14] text-slate-100 antialiased selection:bg-red-600 selection:text-white overflow-x-hidden">

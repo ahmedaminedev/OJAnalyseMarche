@@ -184,8 +184,8 @@ export const SalesEvolutionChart: React.FC<SalesEvolutionChartProps> = ({
                 {isHovered && (
                   <g pointerEvents="none">
                     <rect
-                      x={p.x - 45}
-                      y={p.y - 32}
+                      x={Math.max(10, Math.min(svgWidth - 100, p.x - 45))}
+                      y={p.y - 32 < 5 ? p.y + 10 : p.y - 32}
                       width="90"
                       height="24"
                       rx="6"
@@ -194,8 +194,8 @@ export const SalesEvolutionChart: React.FC<SalesEvolutionChartProps> = ({
                       strokeWidth="1"
                     />
                     <text
-                      x={p.x}
-                      y={p.y - 16}
+                      x={Math.max(55, Math.min(svgWidth - 55, p.x))}
+                      y={p.y - 32 < 5 ? p.y + 26 : p.y - 16}
                       textAnchor="middle"
                       fill="#ffffff"
                       fontSize="10"

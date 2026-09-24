@@ -1,25 +1,29 @@
 import { Router } from 'express';
 import {
+  initImport,
+  uploadChunk,
+  finalizeImport,
+  cancelImport,
+  testConnection,
   getImports,
   getImportById,
-  createImport,
   deleteImport,
   getImportsStats,
-  updateImportStatus,
-  testMongoConnection,
 } from '../controllers/importController';
-import { validateImportPayload } from '../middleware/validation';
 
 const router = Router();
 
-// Routes
+// Batch Import Flow
+router.post('/init', initImport);
+router.post('/:id/chunks', uploadChunk);
+router.post('/:id/finalize', finalizeImport);
+router.post('/:id/cancel', cancelImport);
+router.post('/test-connection', testConnection);
+
+// Overview & Data Queries
 router.get('/stats/overview', getImportsStats);
-router.post('/test-connection', testMongoConnection);
 router.get('/', getImports);
 router.get('/:id', getImportById);
-router.post('/', validateImportPayload, createImport);
-router.patch('/:id/status', updateImportStatus);
 router.delete('/:id', deleteImport);
 
 export default router;
-

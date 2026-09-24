@@ -8,6 +8,10 @@ import {
   FileSpreadsheet,
   Upload,
   ArrowRight,
+  Cpu,
+  ChevronDown,
+  ChevronUp,
+  LineChart as LineIcon,
 } from 'lucide-react';
 import {
   marketService,
@@ -20,10 +24,11 @@ import { MarketSharePieChart } from './MarketSharePieChart';
 import { BrandModelsBarChart } from './BrandModelsBarChart';
 import { PhevRankingBarChart } from './PhevRankingBarChart';
 import { AtttSalesRankingChart } from './AtttSalesRankingChart';
+import { SalesEvolutionChart } from '../dashboard/SalesEvolutionChart';
 import {
-  AdvancedMarketFiltersBar,
-  AdvancedFiltersState,
-} from './AdvancedMarketFiltersBar';
+  DynamicDatabaseFiltersBar,
+  DynamicFiltersState,
+} from './DynamicDatabaseFiltersBar';
 
 interface MarketAnalyticsPageProps {
   onNavigateToImport?: () => void;
@@ -39,26 +44,33 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
   const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showSchemaDrawer, setShowSchemaDrawer] = useState<boolean>(false);
 
-  // Non-AI Advanced Filters State
-  const [filters, setFilters] = useState<AdvancedFiltersState>({
+  // Dynamic Database Filters State
+  const [dynamicFilters, setDynamicFilters] = useState<DynamicFiltersState>({
     searchQuery: '',
-    selectedBrands: [],
-    originFilter: 'all',
-    energyFilter: 'all',
-    minSales: 0,
-    topLimit: 0,
-    sortBy: 'sales_desc',
+    cellFilters: {},
+    selectedPeriod: 'all',
   });
 
   // Fetch market stats & available datasets
-  const loadData = async (datasetId?: string, brandName?: string) => {
+  const loadData = async (
+    datasetId?: string,
+    brandName?: string,
+    customFilters?: DynamicFiltersState
+  ) => {
     setIsLoading(true);
     try {
+      const activeFilters = customFilters || dynamicFilters;
+      const targetId = datasetId || selectedDatasetId;
+
       const [stats, datasets] = await Promise.all([
         marketService.getMarketStats({
-          importId: datasetId || selectedDatasetId,
+          importId: targetId,
           brand: brandName || selectedBrand,
+          searchQuery: activeFilters.searchQuery,
+          cellFilters: activeFilters.cellFilters,
+          selectedPeriod: activeFilters.selectedPeriod,
         }),
         importService.getAllImports(),
       ]);
@@ -86,7 +98,19 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
 
   const handleDatasetChange = async (newId: string) => {
     setSelectedDatasetId(newId);
-    await loadData(newId);
+    // Reset filters on dataset change
+    const freshFilters: DynamicFiltersState = {
+      searchQuery: '',
+      cellFilters: {},
+      selectedPeriod: 'all',
+    };
+    setDynamicFilters(freshFilters);
+    await loadData(newId, undefined, freshFilters);
+  };
+
+  const handleFiltersChange = async (newFilters: DynamicFiltersState) => {
+    setDynamicFilters(newFilters);
+    await loadData(selectedDatasetId, selectedBrand, newFilters);
   };
 
   const handleSelectBrand = async (brand: string) => {
@@ -94,6 +118,9 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
     const updated = await marketService.getMarketStats({
       importId: selectedDatasetId,
       brand,
+      searchQuery: dynamicFilters.searchQuery,
+      cellFilters: dynamicFilters.cellFilters,
+      selectedPeriod: dynamicFilters.selectedPeriod,
     });
     if (updated) {
       setStatsData(updated);
@@ -104,61 +131,7 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
     statsData && statsData.hasData && statsData.totalRows && statsData.totalRows > 0
   );
 
-  // Filter application pipeline
-  let displayedBrands: BrandStat[] = [...(statsData?.brandsRanking || [])];
-
-  // 1. Text Search Query
-  if (filters.searchQuery.trim()) {
-    const q = filters.searchQuery.toLowerCase().trim();
-    displayedBrands = displayedBrands.filter((b) =>
-      b.brand.toLowerCase().includes(q)
-    );
-  }
-
-  // 2. Multi-brand selection
-  if (filters.selectedBrands.length > 0) {
-    const setBrands = new Set(filters.selectedBrands.map((b) => b.toLowerCase()));
-    displayedBrands = displayedBrands.filter((b) =>
-      setBrands.has(b.brand.toLowerCase())
-    );
-  }
-
-  // 3. Geographic Origin
-  if (filters.originFilter !== 'all') {
-    displayedBrands = displayedBrands.filter((b) =>
-      b.origin.toLowerCase().includes(filters.originFilter.toLowerCase())
-    );
-  }
-
-  // 4. Energy Filter
-  if (filters.energyFilter === 'phev') {
-    displayedBrands = displayedBrands.filter((b) => b.phevSales > 0);
-  } else if (filters.energyFilter === 'ice') {
-    displayedBrands = displayedBrands.filter((b) => b.sales > b.phevSales);
-  }
-
-  // 5. Minimum Sales Threshold
-  if (filters.minSales > 0) {
-    displayedBrands = displayedBrands.filter((b) => b.sales >= filters.minSales);
-  }
-
-  // 6. Sorting
-  if (filters.sortBy === 'sales_asc') {
-    displayedBrands.sort((a, b) => a.sales - b.sales);
-  } else if (filters.sortBy === 'phev_desc') {
-    displayedBrands.sort((a, b) => b.phevSales - a.phevSales);
-  } else if (filters.sortBy === 'share_desc') {
-    displayedBrands.sort((a, b) => b.marketShare - a.marketShare);
-  } else if (filters.sortBy === 'name_asc') {
-    displayedBrands.sort((a, b) => a.brand.localeCompare(b.brand));
-  } else {
-    displayedBrands.sort((a, b) => b.sales - a.sales);
-  }
-
-  // 7. Top Limit
-  if (filters.topLimit > 0) {
-    displayedBrands = displayedBrands.slice(0, filters.topLimit);
-  }
+  const displayedBrands: BrandStat[] = statsData?.brandsRanking || [];
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
@@ -180,11 +153,11 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
             Analyse Complète du Marché Automobile
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Explorez les données de vos fichiers Excel avec des filtres combinés et visualisations dynamiques.
+            Compréhension automatique des types et colonnes de la base, filtres cellulaires et visualisations synchronisées.
           </p>
         </div>
 
-        {/* Dataset selector + refresh */}
+        {/* Dataset selector + schema inspector + refresh */}
         <div className="flex items-center gap-2">
           {availableDatasets.length > 0 && (
             <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
@@ -203,6 +176,19 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
             </div>
           )}
 
+          {statsData?.semanticSchema?.profiles && (
+            <button
+              type="button"
+              onClick={() => setShowSchemaDrawer(!showSchemaDrawer)}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-cyan-800/60 hover:bg-slate-800 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Inspecter comment le système a compris les colonnes en base"
+            >
+              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Schéma Compris ({statsData.semanticSchema.profiles.length})</span>
+              {showSchemaDrawer ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => loadData()}
@@ -213,6 +199,57 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Semantic Schema Understanding Drawer */}
+      {showSchemaDrawer && statsData?.semanticSchema && (
+        <div className="bg-[#0b1324] border border-cyan-900/60 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800 pb-3 gap-2">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-cyan-400" />
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                  Compréhension Sémantique des Données de la Base
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Le système a scanné les colonnes et a automatiquement identifié les types, rôles métiers et métriques à agréger.
+                </p>
+              </div>
+            </div>
+            {statsData.semanticSchema.plan && (
+              <div className="text-xs text-cyan-300 font-mono bg-cyan-950/60 border border-cyan-800/60 px-3 py-1.5 rounded-xl">
+                {statsData.semanticSchema.plan.dimensionRoleExplanation}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {statsData.semanticSchema.profiles.map((p, idx) => (
+              <div
+                key={idx}
+                className="p-3 rounded-xl bg-[#080d19] border border-slate-800 hover:border-cyan-800/50 transition-colors flex flex-col justify-between text-xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                    <span className="font-bold text-white truncate max-w-[160px]">
+                      {p.originalHeader}
+                    </span>
+                    <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-800/60 uppercase">
+                      {p.semanticRole}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    {p.explanation}
+                  </p>
+                </div>
+                <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                  <span>Type : {p.detectedDataType}</span>
+                  <span>Confiance : {Math.round(p.confidence * 100)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Empty State Banner if no imported Excel file exists */}
       {!hasImportedData ? (
@@ -262,14 +299,16 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
                   {statsData.kpis.totalMarketSales.toLocaleString('fr-FR')}
                 </div>
                 <div className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
-                  <span className="text-emerald-400 font-semibold">{statsData.totalRows}</span> lignes réelles analysées
+                  <span className="text-emerald-400 font-semibold">
+                    {statsData.totalFilteredRows !== undefined ? statsData.totalFilteredRows : statsData.totalRows}
+                  </span> lignes filtrées sur {statsData.totalRows}
                 </div>
               </div>
 
               {/* KPI 2: Leader */}
               <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span className="font-semibold uppercase tracking-wider">Marque N°1</span>
+                  <span className="font-semibold uppercase tracking-wider">Leader N°1</span>
                   <span className="p-1.5 rounded-lg bg-amber-950/60 text-amber-400 border border-amber-900/50">
                     <Award className="w-3.5 h-3.5" />
                   </span>
@@ -285,27 +324,33 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
                 </div>
               </div>
 
-              {/* KPI 3: Secondary / PHEV Volume */}
+              {/* KPI 3: Segments Count or PHEV */}
               <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                  <span className="font-semibold uppercase tracking-wider">Segment PHEV</span>
-                  <span className="p-1.5 rounded-lg bg-red-950/60 text-[#ff284d] border border-red-900/50">
+                  <span className="font-semibold uppercase tracking-wider">
+                    {statsData.segmentsBreakdown && statsData.segmentsBreakdown.length > 0 ? 'Segments Analysés' : 'Ventes PHEV'}
+                  </span>
+                  <span className="p-1.5 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-900/50">
                     <Zap className="w-3.5 h-3.5" />
                   </span>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-[#ff284d] font-mono">
-                  {statsData.kpis.totalPhevSales.toLocaleString('fr-FR')}
+                <div className="text-2xl sm:text-3xl font-black text-white font-mono">
+                  {statsData.segmentsBreakdown && statsData.segmentsBreakdown.length > 0
+                    ? statsData.segmentsBreakdown.length
+                    : statsData.kpis.totalPhevSales.toLocaleString('fr-FR')}
                 </div>
-                <div className="text-xs text-slate-400 mt-2 font-mono">
-                  {statsData.kpis.totalPhevSales > 0 ? 'Immatriculations rechargeables' : 'Non spécifié'}
+                <div className="text-xs text-slate-400 mt-2 font-mono truncate">
+                  {statsData.segmentsBreakdown && statsData.segmentsBreakdown.length > 0
+                    ? `Top: ${statsData.segmentsBreakdown[0]?.name || ''}`
+                    : `${statsData.kpis.totalMarketSales > 0 ? ((statsData.kpis.totalPhevSales / statsData.kpis.totalMarketSales) * 100).toFixed(1) : 0}% du volume global`}
                 </div>
               </div>
 
-              {/* KPI 4: Total Brands */}
+              {/* KPI 4: Total Distinct Brands / Entities */}
               <div className="p-5 rounded-2xl bg-[#0e1626] border border-slate-800/90 shadow-lg relative overflow-hidden group">
                 <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
                   <span className="font-semibold uppercase tracking-wider">Entités Détectées</span>
-                  <span className="p-1.5 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-900/50">
+                  <span className="p-1.5 rounded-lg bg-purple-950/60 text-purple-400 border border-purple-900/50">
                     <TrendingUp className="w-3.5 h-3.5" />
                   </span>
                 </div>
@@ -313,24 +358,27 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
                   {statsData.kpis.totalBrands}
                 </div>
                 <div className="text-xs text-slate-400 mt-2 font-mono">
-                  Catégories ou marques distinctes
+                  Marques ou catégories distinctes
                 </div>
               </div>
             </div>
           )}
 
-          {/* 100% NON-AI ADVANCED FILTERS BAR */}
+          {/* DYNAMIC DATABASE FILTERS BAR (100% LINKED TO DATABASE) */}
           {statsData && (
-            <AdvancedMarketFiltersBar
-              filters={filters}
-              onFiltersChange={setFilters}
-              availableBrands={statsData.availableBrands}
-              totalRecordsCount={statsData.brandsRanking.length}
-              filteredRecordsCount={displayedBrands.length}
+            <DynamicDatabaseFiltersBar
+              datasetId={selectedDatasetId}
+              datasetName={statsData.datasetName || undefined}
+              totalRows={statsData.totalRows || 0}
+              totalFilteredRows={statsData.totalFilteredRows}
+              availableFilterOptions={statsData.availableFilterOptions}
+              availablePeriods={statsData.availablePeriods}
+              filters={dynamicFilters}
+              onFiltersChange={handleFiltersChange}
             />
           )}
 
-          {/* 4 Interactive Visualizations */}
+          {/* Interactive Visualizations */}
           {statsData && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Chart 1: Donut Part de Marché */}
@@ -366,6 +414,16 @@ export const MarketAnalyticsPage: React.FC<MarketAnalyticsPageProps> = ({
                   datasetName={statsData.datasetName || undefined}
                 />
               </div>
+
+              {/* Chart 5: Courbe d'Évolution des Ventes */}
+              {statsData.timeEvolution && statsData.timeEvolution.length > 0 && (
+                <div className="lg:col-span-12">
+                  <SalesEvolutionChart
+                    data={statsData.timeEvolution}
+                    datasetName={statsData.datasetName || undefined}
+                  />
+                </div>
+              )}
             </div>
           )}
         </>

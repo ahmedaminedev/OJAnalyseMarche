@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const ALLOWED_EXTENSIONS = ['.xlsx', '.xls'];
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
 
 /**
  * Server-side validation middleware for Excel imports.

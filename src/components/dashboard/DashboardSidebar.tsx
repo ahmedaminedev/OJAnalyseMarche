@@ -1,12 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  LayoutDashboard,
-  Folder,
-  ChevronDown,
-  ChevronRight,
-  TrendingUp,
-  Sparkles,
-  Bot,
+  Upload,
+  Database,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { ASSETS } from '../../data/mockData';
 
@@ -17,43 +13,12 @@ interface DashboardSidebarProps {
   onSelectItem?: (item: string) => void;
 }
 
-interface NavSection {
-  id: string;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  items: string[];
-}
-
 export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   isOpen,
   onCloseMobile,
-  activeItem = 'Dashboard',
+  activeItem = 'Importer un fichier',
   onSelectItem,
 }) => {
-  // Collapsible state for accordion sections
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    donnees: true,
-  });
-
-  const toggleSection = (id: string) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
-  const navSections: NavSection[] = [
-    {
-      id: 'donnees',
-      label: 'Données',
-      icon: Folder,
-      items: [
-        'Importer un fichier',
-        'Fichiers importés',
-      ],
-    },
-  ];
-
   const handleItemClick = (label: string) => {
     if (onSelectItem) {
       onSelectItem(label);
@@ -80,135 +45,62 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         }`}
       >
         {/* Navigation list */}
-        <div className="p-4 space-y-1">
-          {/* Main Dashboard item */}
+        <div className="p-4 space-y-2">
+          <div className="px-3 py-1.5 text-[11px] font-bold tracking-wider text-slate-400 uppercase font-mono">
+            Importation & Données
+          </div>
+
+          {/* Importer un fichier */}
           <button
-            id="sidebar-dashboard-btn"
+            id="sidebar-import-btn"
             type="button"
-            onClick={() => handleItemClick('Dashboard')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
-              activeItem === 'Dashboard'
+            onClick={() => handleItemClick('Importer un fichier')}
+            className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+              activeItem === 'Importer un fichier'
                 ? 'bg-[#1b1522] text-white border-l-4 border-[#ff284d] shadow-sm'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900'
             }`}
           >
             <div
               className={`p-1.5 rounded-lg ${
-                activeItem === 'Dashboard'
+                activeItem === 'Importer un fichier'
                   ? 'bg-gradient-to-tr from-red-600 to-rose-500 text-white shadow-md shadow-red-600/30'
-                  : 'text-slate-400'
+                  : 'text-slate-400 bg-slate-900'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4" />
+              <Upload className="w-4 h-4" />
             </div>
-            <span className="font-semibold tracking-wide">Tableau de bord</span>
+            <div className="flex flex-col">
+              <span className="font-semibold tracking-wide text-white">Importer un fichier</span>
+              <span className="text-[11px] text-slate-400">Excel (.xlsx, .xls)</span>
+            </div>
           </button>
 
-          {/* Market Analytics section */}
+          {/* Fichiers importés & Jeux de données */}
           <button
-            id="sidebar-analytics-btn"
+            id="sidebar-files-btn"
             type="button"
-            onClick={() => handleItemClick('Analyse de Marché')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
-              activeItem === 'Analyse de Marché'
+            onClick={() => handleItemClick('Fichiers importés')}
+            className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-left ${
+              activeItem === 'Fichiers importés' || activeItem === 'Historique des imports' || activeItem === 'Jeux de données'
                 ? 'bg-[#1b1522] text-white border-l-4 border-[#ff284d] shadow-sm'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900'
             }`}
           >
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-1.5 rounded-lg ${
-                  activeItem === 'Analyse de Marché'
-                    ? 'bg-gradient-to-tr from-red-600 to-rose-500 text-white shadow-md shadow-red-600/30'
-                    : 'text-slate-400'
-                }`}
-              >
-                <TrendingUp className="w-4 h-4" />
-              </div>
-              <span className="font-semibold tracking-wide">Analyse de Marché</span>
+            <div
+              className={`p-1.5 rounded-lg ${
+                activeItem === 'Fichiers importés' || activeItem === 'Historique des imports' || activeItem === 'Jeux de données'
+                  ? 'bg-gradient-to-tr from-red-600 to-rose-500 text-white shadow-md shadow-red-600/30'
+                  : 'text-slate-400 bg-slate-900'
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-semibold tracking-wide text-white">Fichiers importés</span>
+              <span className="text-[11px] text-slate-400">Historique & Tables</span>
             </div>
           </button>
-
-          {/* Assistant IA Chatbot section */}
-          <button
-            id="sidebar-assistant-btn"
-            type="button"
-            onClick={() => handleItemClick('Assistant IA')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
-              activeItem === 'Assistant IA'
-                ? 'bg-[#1b1522] text-white border-l-4 border-[#ff284d] shadow-sm'
-                : 'text-slate-300 hover:text-white hover:bg-slate-900'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-1.5 rounded-lg ${
-                  activeItem === 'Assistant IA'
-                    ? 'bg-gradient-to-tr from-red-600 to-rose-500 text-white shadow-md shadow-red-600/30'
-                    : 'text-slate-400'
-                }`}
-              >
-                <Bot className="w-4 h-4 text-amber-300" />
-              </div>
-              <span className="font-semibold tracking-wide">Assistant IA</span>
-            </div>
-            <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-950/80 text-red-300 border border-red-800/60 font-mono">
-              <Sparkles className="w-2.5 h-2.5 text-amber-300 animate-pulse" />
-              Chatbot
-            </span>
-          </button>
-
-          {/* Collapsible Sections */}
-          <div className="pt-2 space-y-1">
-            {navSections.map((section) => {
-              const Icon = section.icon;
-              const isExpanded = openSections[section.id];
-
-              return (
-                <div key={section.id} className="py-1">
-                  {/* Section Trigger Header */}
-                  <button
-                    type="button"
-                    onClick={() => toggleSection(section.id)}
-                    className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white rounded-lg hover:bg-slate-900/60 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Icon className="w-4 h-4 text-slate-400" />
-                      <span>{section.label}</span>
-                    </div>
-                    {isExpanded ? (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
-                    )}
-                  </button>
-
-                  {/* Accordion Sub-items */}
-                  {isExpanded && (
-                    <div className="mt-1 pl-9 pr-2 space-y-1">
-                      {section.items.map((subItem) => {
-                        const isSubActive = activeItem === subItem;
-                        return (
-                          <button
-                            key={subItem}
-                            type="button"
-                            onClick={() => handleItemClick(subItem)}
-                            className={`w-full text-left text-xs py-1.5 px-2 rounded-md transition-colors truncate ${
-                              isSubActive
-                                ? 'text-[#ff284d] font-semibold bg-red-950/20'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                            }`}
-                          >
-                            {subItem}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* Bottom Sidebar Promotional Card: OMODA | JAECOO - DRIVE YOUR FUTURE */}
@@ -233,7 +125,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 OMODA <span className="text-[#ff284d]">|</span> JAECOO
               </div>
               <div className="text-[9px] font-bold tracking-[0.25em] text-slate-400 mt-0.5 uppercase">
-                Drive Your Future
+                Plateforme d'Importation
               </div>
             </div>
           </div>

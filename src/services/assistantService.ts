@@ -23,6 +23,14 @@ export interface AssistantChartConfig {
   dataKey?: string;
 }
 
+export interface AssistantTableData {
+  title: string;
+  description?: string;
+  headers: string[];
+  rows: string[][];
+  totalSummary?: string;
+}
+
 export interface AssistantMessage {
   id: string;
   sender: 'user' | 'assistant';
@@ -30,6 +38,8 @@ export interface AssistantMessage {
   text: string;
   calculations?: AssistantCalculation[];
   chart?: AssistantChartConfig | null;
+  table?: AssistantTableData | null;
+  schemaInsight?: string | null;
   missingDataNotice?: string | null;
   suggestedFollowUps?: string[];
 }
@@ -38,11 +48,14 @@ export interface AssistantChatResponse {
   reply: string;
   calculations?: AssistantCalculation[];
   chart?: AssistantChartConfig | null;
+  table?: AssistantTableData | null;
+  schemaInsight?: string | null;
   missingDataNotice?: string | null;
   suggestedFollowUps?: string[];
 }
 
 export const assistantService = {
+
   async sendMessage(
     message: string,
     importId?: string,
@@ -55,6 +68,7 @@ export const assistantService = {
       },
       body: JSON.stringify({
         message,
+        query: message,
         importId,
         conversationHistory,
       }),

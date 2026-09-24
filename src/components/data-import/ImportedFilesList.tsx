@@ -319,13 +319,13 @@ export const ImportedFilesList: React.FC<ImportedFilesListProps> = ({
                       <span>
                         {backendStats.mongoConnected
                           ? `Connecté (${backendStats.cluster || 'MongoDB'})`
-                          : 'Mode Mémoire (MongoDB Déconnecté)'}
+                          : 'MongoDB Déconnecté (HTTP 503)'}
                       </span>
                     </span>
                     <span className="text-[9px] text-slate-500 font-mono block mt-0.5">
                       {backendStats.mongoConnected
                         ? `Hôte: ${backendStats.host}`
-                        : 'Application sur serveur Cloud • Compass en local'}
+                        : 'Aucun fallback simulé • Configurer MONGODB_URI ou tester ci-dessous'}
                     </span>
                   </div>
                 </div>
@@ -333,11 +333,15 @@ export const ImportedFilesList: React.FC<ImportedFilesListProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowMongoHelpModal(true)}
-                  className="px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[11px] font-semibold transition-colors flex items-center gap-1 flex-shrink-0 cursor-pointer"
-                  title="Comment connecter votre base à MongoDB Compass ?"
+                  className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-colors flex items-center gap-1.5 flex-shrink-0 cursor-pointer ${
+                    backendStats.mongoConnected
+                      ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
+                      : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 border-amber-500 font-bold shadow'
+                  }`}
+                  title="Configurer la connexion MongoDB"
                 >
-                  <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Guide Compass</span>
+                  <Database className="w-3.5 h-3.5" />
+                  <span>{backendStats.mongoConnected ? 'Info Base' : 'Connecter MongoDB'}</span>
                 </button>
               </div>
 

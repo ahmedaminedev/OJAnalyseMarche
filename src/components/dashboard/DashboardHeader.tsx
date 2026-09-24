@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Bell, ChevronDown, User, LogOut, Settings, ShieldCheck, Menu, X, Check, Sparkles, Bot } from 'lucide-react';
+import { Bell, ChevronDown, User, Settings, ShieldCheck, Menu, X, Check } from 'lucide-react';
 import { BrandLogo } from '../common/BrandLogo';
 
 interface DashboardHeaderProps {
-  onLogout: () => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
   activeItem?: string;
@@ -11,7 +10,6 @@ interface DashboardHeaderProps {
 }
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
-  onLogout,
   onToggleSidebar,
   isSidebarOpen,
   activeItem,
@@ -68,51 +66,25 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
         <nav className="hidden md:flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800/80">
           <button
             type="button"
-            onClick={() => onSelectItem('Dashboard')}
+            onClick={() => onSelectItem('Importer un fichier')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeItem === 'Dashboard'
+              activeItem === 'Importer un fichier'
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            Tableau de bord
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectItem('Analyse de Marché')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeItem === 'Analyse de Marché'
-                ? 'bg-red-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            Analyse de Marché
-          </button>
-          <button
-            type="button"
-            onClick={() => onSelectItem('Assistant IA')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              activeItem === 'Assistant IA'
-                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md shadow-red-600/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-            <span>Assistant IA</span>
-            <span className="text-[9px] px-1 py-0.2 rounded bg-red-950 text-red-300 border border-red-800 font-mono font-bold">
-              Chatbot
-            </span>
+            Importer un fichier
           </button>
           <button
             type="button"
             onClick={() => onSelectItem('Fichiers importés')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeItem === 'Fichiers importés' || activeItem === 'Importer un fichier'
+              activeItem === 'Fichiers importés' || activeItem === 'Historique des imports' || activeItem === 'Jeux de données'
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            Données & Imports
+            Fichiers importés & Données
           </button>
         </nav>
       )}
@@ -223,22 +195,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 rounded-lg transition-colors text-left"
                 >
                   <Settings className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Paramètres du compte</span>
-                </button>
-              </div>
-
-              <div className="pt-1 border-t border-slate-800/80">
-                <button
-                  id="dashboard-logout-btn"
-                  type="button"
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    onLogout();
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors text-left font-medium"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-red-400" />
-                  <span>Se déconnecter (Retour à l'accueil)</span>
+                  <span>Paramètres du module</span>
                 </button>
               </div>
             </div>

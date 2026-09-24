@@ -1,163 +1,181 @@
 import { Request, Response } from 'express';
-import { ImportRecordModel } from '../models/ImportRecord';
+import { ObjectId } from 'mongodb';
 import {
+  getDatasetsCollection,
+  getRowsCollection,
   isMongoConnected,
-  connectDB,
-  reconnectWithUri,
   getDatabaseInfo,
   DEFAULT_DB_NAME,
 } from '../config/db';
 import {
-  getAllImportedFiles,
-  getTargetImportedFile,
-  saveImportedFile,
-  deleteImportedFile,
-  memoryImportsStore,
-} from '../data/importsStore';
+  initImport,
+  uploadChunk,
+  finalizeImport,
+  cancelImport,
+  testConnection,
+} from './importBatchController';
+
+export {
+  initImport,
+  uploadChunk,
+  finalizeImport,
+  cancelImport,
+  testConnection,
+};
+
+function checkDatabaseAvailable(res: Response): boolean {
+  if (!isMongoConnected()) {
+    res.status(503).json({
+      error: 'Service temporairement indisponible : la base de données MongoDB est déconnectée ou injoignable.',
+      code: 'DATABASE_OFFLINE',
+    });
+    return false;
+  }
+  return true;
+}
 
 /**
  * GET /api/imports
- * Fetch all imports strictly from backend storage
+ * Fetch all datasets formatted for UI compatibility
  */
 export async function getImports(req: Request, res: Response): Promise<void> {
   try {
-    const records = await getAllImportedFiles();
-    res.json(records);
-  } catch (error) {
+    if (!checkDatabaseAvailable(res)) return;
+
+    const datasetsCol = getDatasetsCollection();
+    const datasets = await datasetsCol.find().sort({ importedAt: -1 }).toArray();
+
+    const formatted = datasets.map((d) => ({
+      ...d,
+      id: d._id.toString(),
+      totalRows: d.rowCount,
+      totalColumns: d.columns?.length || 0,
+      totalEmptyCells: d.columns?.reduce((acc, c) => acc + (c.nullCount || 0), 0) || 0,
+      activeSheetName: d.sheetName,
+      availableSheets: [d.sheetName],
+      issuesCount: d.quality
+        ? {
+            errors: d.quality.errors,
+            warnings: d.quality.warnings,
+            info: d.quality.info,
+          }
+        : { errors: 0, warnings: 0, info: 0 },
+      issues: d.quality?.issues || [],
+      previewData: {
+        columns: d.columns,
+        rows: [],
+      },
+    }));
+
+    res.json(formatted);
+  } catch (error: any) {
     console.error('Erreur getImports:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des imports.' });
+    res.status(500).json({ error: error?.message || 'Erreur lors de la récupération des imports.' });
   }
 }
 
 /**
  * GET /api/imports/:id
- * Fetch single import by ID
+ * Fetch single import with preview rows from "rows" collection
  */
 export async function getImportById(req: Request, res: Response): Promise<void> {
   try {
+    if (!checkDatabaseAvailable(res)) return;
+
     const { id } = req.params;
-    const record = await getTargetImportedFile(id);
-    if (!record) {
+    if (!ObjectId.isValid(id)) {
+      res.status(400).json({ error: 'Identifiant import invalide.' });
+      return;
+    }
+
+    const datasetId = new ObjectId(id);
+    const datasetsCol = getDatasetsCollection();
+    const rowsCol = getRowsCollection();
+
+    const dataset = await datasetsCol.findOne({ _id: datasetId });
+    if (!dataset) {
       res.status(404).json({ error: 'Import non trouvé.' });
       return;
     }
-    res.json(record);
-  } catch (error) {
+
+    // Fetch preview rows (first 100)
+    const previewRowsDocs = await rowsCol
+      .find({ datasetId })
+      .sort({ rowNumber: 1 })
+      .limit(100)
+      .toArray();
+
+    const previewRows = previewRowsDocs.map((r) => r.data);
+
+    res.json({
+      ...dataset,
+      id: dataset._id.toString(),
+      totalRows: dataset.rowCount,
+      totalColumns: dataset.columns?.length || 0,
+      activeSheetName: dataset.sheetName,
+      availableSheets: [dataset.sheetName],
+      previewData: {
+        columns: dataset.columns,
+        rows: previewRows,
+      },
+    });
+  } catch (error: any) {
     console.error('Erreur getImportById:', error);
-    res.status(500).json({ error: "Erreur lors de la recherche de l'import." });
-  }
-}
-
-/**
- * POST /api/imports
- * Save a new import into the backend database
- */
-export async function createImport(req: Request, res: Response): Promise<void> {
-  try {
-    const payload = req.body;
-    const newRecord = {
-      ...payload,
-      id: payload.id || `imp_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      importedAt: payload.importedAt || new Date().toISOString(),
-    };
-
-    const saved = await saveImportedFile(newRecord);
-    res.status(201).json(saved);
-  } catch (error) {
-    console.error('Erreur createImport:', error);
-    res.status(500).json({ error: "Erreur lors de l'enregistrement de l'import dans la base de données." });
-  }
-}
-
-/**
- * PATCH /api/imports/:id/status
- * Update the status of an import
- */
-export async function updateImportStatus(req: Request, res: Response): Promise<void> {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status) {
-      res.status(400).json({ error: 'Statut requis.' });
-      return;
-    }
-
-    if (!isMongoConnected()) {
-      await connectDB();
-    }
-
-    if (isMongoConnected()) {
-      const updated = await ImportRecordModel.findOneAndUpdate({ id }, { status }, { new: true }).lean();
-      if (!updated) {
-        res.status(404).json({ error: 'Import non trouvé.' });
-        return;
-      }
-      res.json(updated);
-      return;
-    }
-
-    const item = memoryImportsStore.find((i) => i.id === id);
-    if (!item) {
-      res.status(404).json({ error: 'Import non trouvé.' });
-      return;
-    }
-    item.status = status;
-    res.json(item);
-  } catch (error) {
-    console.error('Erreur updateImportStatus:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour du statut.' });
+    res.status(500).json({ error: error?.message || "Erreur lors de la recherche de l'import." });
   }
 }
 
 /**
  * DELETE /api/imports/:id
- * Delete an import by ID
+ * Delete dataset and all its rows
  */
 export async function deleteImport(req: Request, res: Response): Promise<void> {
   try {
+    if (!checkDatabaseAvailable(res)) return;
+
     const { id } = req.params;
-    const deleted = await deleteImportedFile(id);
-    if (!deleted) {
-      res.status(404).json({ error: 'Import non trouvé.' });
+    if (!ObjectId.isValid(id)) {
+      res.status(400).json({ error: 'Identifiant import invalide.' });
       return;
     }
-    res.json({ success: true, id });
-  } catch (error) {
+
+    const datasetId = new ObjectId(id);
+    const datasetsCol = getDatasetsCollection();
+    const rowsCol = getRowsCollection();
+
+    const deletedRows = await rowsCol.deleteMany({ datasetId });
+    await datasetsCol.deleteOne({ _id: datasetId });
+
+    res.json({
+      success: true,
+      id,
+      deletedRows: deletedRows.deletedCount,
+    });
+  } catch (error: any) {
     console.error('Erreur deleteImport:', error);
-    res.status(500).json({ error: "Erreur lors de la suppression de l'import." });
+    res.status(500).json({ error: error?.message || "Erreur lors de la suppression de l'import." });
   }
 }
 
 /**
  * GET /api/imports/stats/overview
- * Global summary stats for imports directly from backend
+ * Real MongoDB statistics
  */
 export async function getImportsStats(req: Request, res: Response): Promise<void> {
   try {
-    if (!isMongoConnected()) {
-      await connectDB();
-    }
+    if (!checkDatabaseAvailable(res)) return;
 
-    const isMongo = isMongoConnected();
-    let totalImports = 0;
-    let totalRows = 0;
-    let totalColumns = 0;
+    const datasetsCol = getDatasetsCollection();
+    const rowsCol = getRowsCollection();
 
-    if (isMongo) {
-      totalImports = await ImportRecordModel.countDocuments();
-      const rowsAgg = await ImportRecordModel.aggregate([
-        { $group: { _id: null, totalRows: { $sum: '$totalRows' }, totalColumns: { $sum: '$totalColumns' } } },
-      ]);
-      if (rowsAgg.length > 0) {
-        totalRows = rowsAgg[0].totalRows || 0;
-        totalColumns = rowsAgg[0].totalColumns || 0;
-      }
-    } else {
-      totalImports = fallbackMemoryStore.length;
-      totalRows = fallbackMemoryStore.reduce((acc, curr) => acc + (curr.totalRows || 0), 0);
-      totalColumns = fallbackMemoryStore.reduce((acc, curr) => acc + (curr.totalColumns || 0), 0);
-    }
+    const [totalImports, totalRows] = await Promise.all([
+      datasetsCol.countDocuments(),
+      rowsCol.countDocuments(),
+    ]);
+
+    // Calculate total columns across datasets
+    const datasets = await datasetsCol.find({}, { projection: { columns: 1 } }).toArray();
+    const totalColumns = datasets.reduce((acc, d) => acc + (d.columns?.length || 0), 0);
 
     const dbInfo = getDatabaseInfo();
 
@@ -169,46 +187,11 @@ export async function getImportsStats(req: Request, res: Response): Promise<void
       host: dbInfo.host,
       cluster: dbInfo.cluster,
       edition: dbInfo.edition,
-      storageType: isMongo ? `MongoDB (${DEFAULT_DB_NAME})` : `Stockage Backend (Base cible: ${DEFAULT_DB_NAME})`,
-      mongoConnected: isMongo,
+      storageType: `MongoDB (${DEFAULT_DB_NAME})`,
+      mongoConnected: true,
     });
-  } catch (error) {
-    console.error('Erreur getImportsStats:', error);
-    res.status(500).json({ error: 'Erreur lors du calcul des statistiques.' });
-  }
-}
-
-/**
- * POST /api/imports/test-connection
- * Tests a MongoDB connection string and applies it if successful
- */
-export async function testMongoConnection(req: Request, res: Response): Promise<void> {
-  try {
-    const { uri } = req.body;
-    if (!uri || typeof uri !== 'string') {
-      res.status(400).json({ error: 'Chaîne de connexion URI requise.' });
-      return;
-    }
-
-    const result = await reconnectWithUri(uri.trim());
-    if (result.success) {
-      res.json({
-        success: true,
-        message: result.message,
-        databaseName: DEFAULT_DB_NAME,
-        connected: true,
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        error: result.message,
-        connected: false,
-      });
-    }
   } catch (error: any) {
-    console.error('Erreur testMongoConnection:', error);
-    res.status(500).json({ error: error?.message || 'Erreur lors du test de connexion.' });
+    console.error('Erreur getImportsStats:', error);
+    res.status(500).json({ error: error?.message || 'Erreur lors du calcul des statistiques.' });
   }
 }
-
-
